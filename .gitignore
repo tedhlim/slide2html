@@ -9,6 +9,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+/.npm-cache
 
 # testing
 /coverage
@@ -39,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Slide.html specific
+/storage/
+/debug/
+*.jsonkey
+*aif-liveai*.json
+*-gserviceaccount*.json

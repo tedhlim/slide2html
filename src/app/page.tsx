@@ -16,6 +16,39 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setHtml(content);
+        setDeltas([]);
+        try {
+          setIsSaving(true);
+          const res = await fetch('/api/storage/write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ html: content }),
+          });
+          if (!res.ok) throw new Error('Failed to save uploaded document');
+        } catch (err: any) {
+          console.error(err);
+          setError(err.message || 'An error occurred while saving the uploaded document.');
+        } finally {
+          setIsSaving(false);
+        }
+      }
+    };
+    reader.readAsText(file);
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -195,6 +228,20 @@ export default function Home() {
               PLAY
             </button>
           </div>
+          
+          <input 
+            type="file" 
+            accept=".html" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-6 py-2 bg-white border border-gray-200 hover:border-blue-200 hover:text-blue-600 text-gray-600 rounded-xl text-[10px] font-black tracking-widest transition-all"
+          >
+            UPLOAD
+          </button>
           
           <button
             onClick={handleSave}

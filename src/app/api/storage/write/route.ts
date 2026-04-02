@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBucket } from '@/lib/gcs';
 import fs from 'fs/promises';
 import path from 'path';
 
+const FILE_NAME = 'document.html';
 const STORAGE_DIR = path.join(process.cwd(), 'storage');
-const FILE_PATH = path.join(STORAGE_DIR, 'document.html');
+const FILE_PATH = path.join(STORAGE_DIR, FILE_NAME);
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,8 +15,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid HTML content' }, { status: 400 });
     }
 
-    await fs.mkdir(STORAGE_DIR, { recursive: true });
-    await fs.writeFile(FILE_PATH, html, 'utf-8');
+    const isCloud = process.env.STORAGE_MODE === 'cloud';
+
+    if (isCloud) {
+      const bucket = getBucket();
+      const file = bucket.file(FILE_NAME);
+      
+      await file.save(html, {
+        contentType: 'text/html',
+        resumable: false,
+      });
+    } else {
+      // Local storage fallback
+      await fs.mkdir(STORAGE_DIR, { recursive: true });
+      await fs.writeFile(FILE_PATH, html, 'utf-8');
+    }
     
     return NextResponse.json({ success: true });
   } catch (error) {

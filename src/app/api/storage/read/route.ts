@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getBucket } from '@/lib/gcs';
 import fs from 'fs/promises';
 import path from 'path';
 
+const FILE_NAME = 'document.html';
 const STORAGE_DIR = path.join(process.cwd(), 'storage');
-const FILE_PATH = path.join(STORAGE_DIR, 'document.html');
+const FILE_PATH = path.join(STORAGE_DIR, FILE_NAME);
 
 const DEFAULT_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -39,17 +41,33 @@ const DEFAULT_HTML = `<!DOCTYPE html>
 
 export async function GET() {
   try {
-    await fs.mkdir(STORAGE_DIR, { recursive: true });
-    
-    try {
-      const content = await fs.readFile(FILE_PATH, 'utf-8');
-      return NextResponse.json({ html: content });
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist, return default
+    const isCloud = process.env.STORAGE_MODE === 'cloud';
+
+    if (isCloud) {
+      const bucket = getBucket();
+      const file = bucket.file(FILE_NAME);
+      
+      const [exists] = await file.exists();
+      
+      if (!exists) {
         return NextResponse.json({ html: DEFAULT_HTML });
       }
-      throw error;
+      
+      const [contentBuffer] = await file.download();
+      return NextResponse.json({ html: contentBuffer.toString('utf-8') });
+    } else {
+      // Local storage fallback
+      await fs.mkdir(STORAGE_DIR, { recursive: true });
+      
+      try {
+        const content = await fs.readFile(FILE_PATH, 'utf-8');
+        return NextResponse.json({ html: content });
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          return NextResponse.json({ html: DEFAULT_HTML });
+        }
+        throw error;
+      }
     }
   } catch (error) {
     console.error('Error reading document:', error);
