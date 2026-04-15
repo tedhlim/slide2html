@@ -20,8 +20,14 @@ export const IframeRenderer = forwardRef<HTMLIFrameElement, IframeRendererProps>
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) return;
 
+      let finalHtml = htmlContent;
+      // Inject Tailwind CDN into the <head> if it's missing, so AI refactored classes render correctly
+      if (!finalHtml.includes('tailwindcss.com')) {
+        finalHtml = finalHtml.replace('</head>', '<script src="https://cdn.tailwindcss.com"></script></head>');
+      }
+
       doc.open();
-      doc.write(htmlContent);
+      doc.write(finalHtml);
       doc.close();
 
       const handleLoad = () => {

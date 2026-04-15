@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Moveable, { OnDragStart, OnDrag, OnDragEnd, OnResizeStart, OnResize, OnResizeEnd } from 'react-moveable';
-import { VisualDelta } from '@/lib/types';
+import { VisualDelta, DebugInfo } from '@/lib/types';
 
 interface InteractionOverlayProps {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   onChange: (delta: VisualDelta) => void;
   isEditMode: boolean;
+  targets: Array<HTMLElement | SVGElement>;
+  onTargetsChange: (targets: Array<HTMLElement | SVGElement>) => void;
+  onDebugInfo?: (info: DebugInfo) => void;
 }
 
 interface StyleValues {
@@ -30,8 +33,7 @@ function rgbToHex(rgb: string): string {
   return '#' + result.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
 }
 
-export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode }) => {
-  const [targets, setTargets] = useState<Array<HTMLElement | SVGElement>>([]);
+export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode, targets, onTargetsChange, onDebugInfo }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const moveableRef = useRef<Moveable>(null);
   const [iframeWindow, setIframeWindow] = useState<Window | null>(null);
@@ -42,6 +44,8 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
   const initialRects = useRef<Map<HTMLElement | SVGElement, DOMRect>>(new Map());
   const initialContent = useRef<string>("");
   const styleSnapshot = useRef<Partial<StyleValues>>({});
+  const lastSelectorRef = useRef<string | null>(null);
+  const zoomSourceRef = useRef<string>('not yet detected');
 
   useEffect(() => {
     const handleIframeLoad = () => {
@@ -56,9 +60,16 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
             if (matrix) {
               const values = matrix[1].split(', ');
               const scale = Math.sqrt(parseFloat(values[0]) * parseFloat(values[0]) + parseFloat(values[1]) * parseFloat(values[1]));
+              zoomSourceRef.current = `#deck matrix(${values[0]}, ${values[1]}, ...)`;
               setZoom(scale);
+            } else {
+              zoomSourceRef.current = `#deck transform="${transform}" (unrecognized format)`;
             }
+          } else {
+            zoomSourceRef.current = '#deck found but transform=none';
           }
+        } else {
+          zoomSourceRef.current = 'no #deck element — defaulting to 1';
         }
       }
     };
@@ -71,7 +82,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     return () => iframe?.removeEventListener('load', handleIframeLoad);
   }, [iframeRef]);
 
-  const generateSelector = (el: HTMLElement | SVGElement): string => {
+  const generateSelector = useCallback((el: HTMLElement | SVGElement): string => {
     if (el.id) return `#${el.id}`;
     
     let path: string[] = [];
@@ -97,9 +108,20 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       
       current = current.parentElement;
     }
-    
+
     return path.join(' > ');
-  };
+  }, []);
+
+  // Emit debug info whenever targets or zoom changes
+  useEffect(() => {
+    onDebugInfo?.({
+      zoom,
+      zoomSource: zoomSourceRef.current,
+      targetCount: targets.length,
+      lastSelector: lastSelectorRef.current,
+      lastDeltaType: null,
+    });
+  }, [targets, zoom, onDebugInfo]);
 
   // Read computed styles whenever selection changes
   useEffect(() => {
@@ -133,10 +155,13 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     const fromCss = styleSnapshot.current[property] ?? '';
     (el.style as any)[property] = cssValue;
     setSelectedStyles(prev => prev ? { ...prev, [property]: displayValue } : null);
+    const selector = generateSelector(el);
+    lastSelectorRef.current = selector;
     onChange({
-      target_selector: generateSelector(el),
+      target_selector: selector,
       changes: { style: { [property]: { from: fromCss, to: cssValue } } },
     });
+    onDebugInfo?.({ zoom, zoomSource: zoomSourceRef.current, targetCount: targets.length, lastSelector: selector, lastDeltaType: `style ${property}: ${fromCss} → ${cssValue}` });
     styleSnapshot.current[property] = displayValue;
   };
 
@@ -145,26 +170,68 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
 
     const doc = iframeWindow.document;
 
+    // Inject critical CSS to disable native animations and transitions.
+    // If we do not disable this, Moveable's inline `transform` updates will be:
+    // 1. Ignored entirely by elements with `animation-fill-mode: both`
+    // 2. Delayed massively by elements with `transition: all 0.6s`
+    const styleId = 'slide2html-edit-override';
+    let styleEl = doc.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = doc.createElement('style');
+      styleEl.id = styleId;
+      styleEl.textContent = `
+        * {
+          transition: none !important;
+          animation: none !important;
+        }
+      `;
+      doc.head.appendChild(styleEl);
+    }
+
     const onMouseDown = (e: MouseEvent) => {
       const el = e.target as HTMLElement;
-      // Ignore clicks on Moveable handles so we don't abort a drag by changing selection
+
+      // Let Moveable handle interactions on its own control handles
       if (
-        el.closest('.moveable-control-box') || 
+        el.closest('.moveable-control-box') ||
         (typeof el.className === 'string' && el.className.includes('moveable')) ||
         (el.closest && el.closest('[class*="moveable"]'))
       ) {
         return;
       }
 
-      if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
-        setTargets(prev => {
-          if (prev.includes(el) && !e.shiftKey) return prev;
-          if (!e.shiftKey) return [el];
-          return [...prev.filter(t => t !== el), el];
-        });
-      } else if (!e.shiftKey) {
-        setTargets([]);
+      // If the user is mousedown-ing on an already-selected element, let the event
+      // through so Moveable can initiate a drag. Do not block it.
+      const isSelectedTarget = targets.some(t => t === el || (t as HTMLElement).contains(el));
+      if (isSelectedTarget) {
+        return;
       }
+
+      // For everything else: stop the event here so the slide deck cannot
+      // intercept it and advance the slide. We handle selection ourselves.
+      e.stopPropagation();
+
+      if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
+        if (e.shiftKey) {
+          onTargetsChange(targets.includes(el) ? targets.filter(t => t !== el) : [...targets, el]);
+        } else {
+          onTargetsChange([el]);
+        }
+      } else if (!e.shiftKey) {
+        onTargetsChange([]);
+      }
+    };
+
+    // Also block pointerdown in capture phase — some decks use pointer events for navigation
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as HTMLElement;
+      if (
+        el.closest('.moveable-control-box') ||
+        (typeof el.className === 'string' && el.className.includes('moveable')) ||
+        (el.closest && el.closest('[class*="moveable"]'))
+      ) return;
+      const isSelectedTarget = targets.some(t => t === el || (t as HTMLElement).contains(el));
+      if (!isSelectedTarget) e.stopPropagation();
     };
 
     const onDoubleClick = (e: MouseEvent) => {
@@ -174,7 +241,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       const el = e.target as HTMLElement;
       if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
         setEditingElement(el);
-        setTargets([]); // Hide moveable handles while editing text
+        onTargetsChange([]); // Hide moveable handles while editing text
         initialContent.current = el.innerText;
         
         // Make element editable and style it so it looks editable
@@ -224,18 +291,49 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       e.preventDefault();
     };
 
-    doc.addEventListener('mousedown', onMouseDown);
-    // Bind in capture phase to stop underlying deck scripts from advancing slides on double-click
+    // All three bound in capture phase so we intercept before the slide deck does
+    doc.addEventListener('mousedown', onMouseDown, true);
+    doc.addEventListener('pointerdown', onPointerDown, true);
     doc.addEventListener('dblclick', onDoubleClick, true);
-    // Add click listener in capture phase to stop underlying deck scripts from advancing slides
     doc.addEventListener('click', onClick, true);
 
     return () => {
-      doc.removeEventListener('mousedown', onMouseDown);
+      if (styleEl) styleEl.remove();
+      doc.removeEventListener('mousedown', onMouseDown, true);
+      doc.removeEventListener('pointerdown', onPointerDown, true);
       doc.removeEventListener('dblclick', onDoubleClick, true);
       doc.removeEventListener('click', onClick, true);
     };
-  }, [iframeWindow, isEditMode, editingElement, onChange]);
+  }, [iframeWindow, isEditMode, editingElement, onChange, targets]);
+
+  // Delete key handler — fires on the parent window so it works regardless of iframe focus
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    const handleDelete = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      // Don't fire while typing in an input or contentEditable
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        editingElement
+      ) return;
+      if (targets.length === 0) return;
+
+      e.preventDefault();
+      targets.forEach(target => {
+        const selector = generateSelector(target as HTMLElement);
+        onChange({ target_selector: selector, deleted: true, changes: {} });
+        onDebugInfo?.({ zoom, zoomSource: zoomSourceRef.current, targetCount: 0, lastSelector: selector, lastDeltaType: 'deleted' });
+        (target as HTMLElement).remove();
+      });
+      onTargetsChange([]);
+    };
+
+    window.addEventListener('keydown', handleDelete);
+    return () => window.removeEventListener('keydown', handleDelete);
+  }, [isEditMode, targets, editingElement, onChange, onDebugInfo, zoom, generateSelector]);
 
   const onDragStart = (e: OnDragStart) => {
     initialRects.current.set(e.target as HTMLElement | SVGElement, e.target.getBoundingClientRect());
@@ -249,17 +347,21 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       const initialRect = initialRects.current.get(target);
       if (initialRect) {
         const finalRect = target.getBoundingClientRect();
-        onChange({
-          target_selector: generateSelector(target),
+        const selector = generateSelector(target);
+        lastSelectorRef.current = selector;
+        const delta: VisualDelta = {
+          target_selector: selector,
           changes: {
             geometry: {
               position: {
-                from: { x: initialRect.left / zoom, y: initialRect.top / zoom },
-                to: { x: finalRect.left / zoom, y: finalRect.top / zoom }
+                dx: Math.round((finalRect.left - initialRect.left) / zoom),
+                dy: Math.round((finalRect.top - initialRect.top) / zoom)
               }
             }
           }
-        });
+        };
+        onChange(delta);
+        onDebugInfo?.({ zoom, zoomSource: zoomSourceRef.current, targetCount: targets.length, lastSelector: selector, lastDeltaType: `drag dx:${delta.changes.geometry!.position!.dx} dy:${delta.changes.geometry!.position!.dy}` });
         initialRects.current.delete(target);
       }
     }
@@ -282,15 +384,25 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       const initialRect = initialRects.current.get(target);
       if (initialRect) {
         const finalRect = target.getBoundingClientRect();
-        onChange({
-          target_selector: generateSelector(target),
+        const selector = generateSelector(target);
+        lastSelectorRef.current = selector;
+        const delta: VisualDelta = {
+          target_selector: selector,
           changes: {
             geometry: {
-              size: { from: { w: initialRect.width / zoom, h: initialRect.height / zoom }, to: { w: finalRect.width / zoom, h: finalRect.height / zoom } },
-              position: { from: { x: initialRect.left / zoom, y: initialRect.top / zoom }, to: { x: finalRect.left / zoom, y: finalRect.top / zoom } }
+              size: {
+                dw: Math.round((finalRect.width - initialRect.width) / zoom),
+                dh: Math.round((finalRect.height - initialRect.height) / zoom)
+              },
+              position: {
+                dx: Math.round((finalRect.left - initialRect.left) / zoom),
+                dy: Math.round((finalRect.top - initialRect.top) / zoom)
+              }
             }
           }
-        });
+        };
+        onChange(delta);
+        onDebugInfo?.({ zoom, zoomSource: zoomSourceRef.current, targetCount: targets.length, lastSelector: selector, lastDeltaType: `resize dw:${delta.changes.geometry!.size!.dw} dh:${delta.changes.geometry!.size!.dh}` });
         initialRects.current.delete(target);
       }
     }

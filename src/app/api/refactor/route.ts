@@ -94,6 +94,12 @@ export async function POST(req: NextRequest) {
       const target = $(delta.target_selector);
       if (target.length === 0) continue;
 
+      // 0. Deletion (Deterministic, no AI)
+      if (delta.deleted) {
+        target.remove();
+        continue;
+      }
+
       // 1. Direct Content Updates (Deterministic, no AI)
       if (delta.changes?.content) {
         target.text(delta.changes.content.to);
@@ -126,11 +132,28 @@ export async function POST(req: NextRequest) {
           if (!aiJobs.has(tmpId)) {
             aiJobs.set(tmpId, { parent, deltas: [] });
           }
+
+          // If the target IS the container itself, reference it by its data-ai-id
+          // to avoid the container being BOTH the root and a target (causes conflicts)
+          const targetIsParent = target.is(parent);
+          let deltaSelector: string;
+
+          if (targetIsParent) {
+            deltaSelector = `[data-ai-id="${tmpId}"]`;
+          } else {
+            // Tag the specific child element inside the snippet
+            let targetMarkId = target.attr('data-ai-target');
+            if (!targetMarkId) {
+              targetMarkId = 'target-' + Math.random().toString(36).substring(2, 6);
+              target.attr('data-ai-target', targetMarkId);
+            }
+            deltaSelector = `[data-ai-target="${targetMarkId}"]`;
+          }
           
           // Store a mapped delta specifically for the AI, so it uses the isolated ID
           aiJobs.get(tmpId)!.deltas.push({
             ...delta,
-            target_selector: `[data-ai-target="${targetMarkId}"]`
+            target_selector: deltaSelector
           });
         }
       }
@@ -155,11 +178,16 @@ Your goal is to refactor this specific HTML snippet to apply these changes while
 ### Rules:
 1. Prioritize Tailwind CSS utility classes over inline styles.
 2. Infer layout intent: if items are moved together, consider using flex or grid.
-3. Maintain the original design system (colors, spacing) unless explicitly changed.
-4. Round sub-pixel values to the nearest integer (e.g., 10px).
-5. RETURN ONLY THE FULL REFACTORED HTML CODE FOR THIS SNIPPET. NO EXPLANATIONS.
-6. CRITICAL: Make sure to KEEP the 'data-ai-id="${tmpId}"' attribute on the root container element.
-7. CRITICAL: Your target elements are marked with 'data-ai-target'. Use this to locate them, and cleanly REMOVE these 'data-ai-target' attributes from your final output.
+3. geometry.position changes (dx, dy) represent RELATIVE pixel movement by the user. Choose the CORRECT CSS approach based on the element's current layout context:
+   - If the element is position:absolute or position:relative with top/left — adjust those offset values by dx/dy.
+   - If the element uses FLOW LAYOUT (inline, block, flex children, etc.) — adjust margin-top (for dy) and margin-left (for dx). NEVER use transform/translate on flow-layout elements — it will appear to have no effect.
+   - Example: dy:-63 on a flow element means it moved 63px UP → add or adjust its top margin: class like -mt-16 or mt-[-63px].
+4. geometry.size changes (dw, dh) represent RELATIVE pixel size changes. Adjust width/height classes (e.g. dw:50 → increase w- by 50px).
+5. Maintain the original design system (colors, spacing) unless explicitly changed.
+6. Round sub-pixel values to the nearest integer (e.g., 10px).
+7. RETURN ONLY THE FULL REFACTORED HTML CODE FOR THIS SNIPPET. NO EXPLANATIONS.
+8. CRITICAL: Make sure to KEEP the 'data-ai-id="${tmpId}"' attribute on the root container element.
+9. CRITICAL: Your target elements are marked with 'data-ai-target'. Use this to locate them, and cleanly REMOVE these 'data-ai-target' attributes from your final output.
 
 ### Container HTML:
 \`\`\`html

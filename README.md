@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Slide.html — AI Round-Trip Slide Editor
 
-## Getting Started
+A visual editor for HTML slide decks. Make layout and style changes by dragging, resizing, and clicking — then let AI translate your visual intent back into clean, semantic HTML/Tailwind code.
 
-First, run the development server:
+## How it works
+
+1. **Upload** an HTML slide deck (any Reveal.js, custom, or Tailwind-based deck)
+2. **Edit** visually — drag elements, resize, double-click to edit text, use the style panel for colors and typography
+3. **Sync with AI** — your visual changes are encoded as a delta JSON and sent to Claude (or OpenAI), which refactors the source code to match your intent using proper Tailwind classes
+4. **Save** — the clean, refactored HTML is written back to storage
+
+No dirty inline styles. No manual CSS. The code stays clean through every edit.
+
+## Getting started
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+Create a `.env.local` file in the project root:
+
+```env
+# AI provider: "claude" (default) or "openai"
+AI_PROVIDER=claude
+
+# Claude (Anthropic)
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_MODEL=claude-sonnet-4-6
+
+# OpenAI (if AI_PROVIDER=openai)
+# OPENAI_API_KEY=sk-...
+# OPENAI_MODEL=gpt-4o
+
+# Storage: "local" (default) or "cloud" (Google Cloud Storage)
+STORAGE_MODE=local
+
+# GCS (if STORAGE_MODE=cloud)
+# GCS_BUCKET_NAME=your-bucket
+# GCS_PROJECT_ID=your-project
+# GCS_CLIENT_EMAIL=...
+# GCS_PRIVATE_KEY=...
+```
+
+### 3. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Editor controls
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Action | How |
+|---|---|
+| Select element | Click any element in the **Layers panel** (right side) or click directly on the canvas |
+| Multi-select | Shift-click in the Layers panel |
+| Deselect | Click "Clear" in the Layers panel |
+| Move element | Drag with the Moveable handles |
+| Resize element | Drag the corner/edge handles |
+| Edit text | Double-click any element |
+| Change style | Select an element — style panel appears at the top (color, font, size, weight, opacity, radius) |
+| Delete element | Select it, then press `Delete` or `Backspace` |
+| Navigate slides | Arrow keys, or use the `←` `→` buttons in the header |
+| Apply changes | Click **SYNC WITH AI** to refactor the HTML with your queued deltas |
+| Save | Click **SAVE** to write the current HTML to storage |
+| Upload new deck | Click **UPLOAD** and pick an `.html` file |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/
+    page.tsx                  # Main editor UI
+    api/
+      refactor/route.ts       # AI refactor endpoint (Claude / OpenAI)
+      storage/
+        read/route.ts         # Read document from local fs or GCS
+        write/route.ts        # Write document to local fs or GCS
+  components/
+    IframeRenderer.tsx        # Renders the slide deck in an isolated iframe
+    InteractionOverlay.tsx    # Moveable drag/resize, text editing, style panel
+    LayerPanel.tsx            # Photoshop-style element tree panel
+  lib/
+    types.ts                  # VisualDelta, DebugInfo types
+    gcs.ts                    # Google Cloud Storage client
+storage/
+  document.html               # Active document (local mode, git-ignored)
+scripts/
+  test-ai.mjs                 # AI connectivity test
+  qa-run.mjs                  # Playwright browser automation QA suite
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Testing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Test AI connectivity:**
+```bash
+node scripts/test-ai.mjs
+```
 
-## Deploy on Vercel
+**Run the full QA suite** (requires the dev server to be running):
+```bash
+npm run dev &
+node scripts/qa-run.mjs
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Debug panel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Click **DEBUG** in the header to open the debug overlay. It shows:
+- Detected zoom factor and its source (critical for correct drag delta calculation)
+- Last generated CSS selector
+- Last delta type (drag/resize/style/deleted)
+- Full pending delta JSON queued for the next SYNC

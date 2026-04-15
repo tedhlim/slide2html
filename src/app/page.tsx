@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IframeRenderer } from '@/components/IframeRenderer';
 import { InteractionOverlay } from '@/components/InteractionOverlay';
-import { VisualDelta } from '@/lib/types';
+import { LayerPanel } from '@/components/LayerPanel';
+import { VisualDelta, DebugInfo } from '@/lib/types';
 
 export default function Home() {
   const [html, setHtml] = useState<string>('');
@@ -14,6 +15,10 @@ export default function Home() {
   const [isEditMode, setIsEditMode] = useState<boolean>(true);
   const [isKeyboardActive, setIsKeyboardActive] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
+  const [targets, setTargets] = useState<Array<HTMLElement | SVGElement>>([]);
+  const [htmlKey, setHtmlKey] = useState<number>(0);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +33,8 @@ export default function Home() {
       if (content) {
         setHtml(content);
         setDeltas([]);
+        setTargets([]);
+        setHtmlKey(k => k + 1);
         try {
           setIsSaving(true);
           const res = await fetch('/api/storage/write', {
@@ -93,7 +100,45 @@ export default function Home() {
   }, []);
 
   const handleDeltaChange = useCallback((delta: VisualDelta) => {
-    setDeltas((prev) => [...prev, delta]);
+    setDeltas((prev) => {
+      const existing = prev.find(d => d.target_selector === delta.target_selector);
+      if (!existing) return [...prev, delta];
+
+      // Merge into existing delta for the same element
+      const merged = { ...existing, changes: { ...existing.changes } };
+
+      if (delta.changes.geometry?.position && merged.changes.geometry?.position) {
+        const prev = merged.changes.geometry.position!;
+        const next = delta.changes.geometry.position!;
+        merged.changes.geometry = {
+          ...merged.changes.geometry,
+          position: { dx: prev.dx + next.dx, dy: prev.dy + next.dy },
+        };
+      } else if (delta.changes.geometry?.position) {
+        merged.changes.geometry = { ...merged.changes.geometry, position: delta.changes.geometry.position };
+      }
+
+      if (delta.changes.geometry?.size && merged.changes.geometry?.size) {
+        const prev = merged.changes.geometry.size!;
+        const next = delta.changes.geometry.size!;
+        merged.changes.geometry = {
+          ...merged.changes.geometry,
+          size: { dw: prev.dw + next.dw, dh: prev.dh + next.dh },
+        };
+      } else if (delta.changes.geometry?.size) {
+        merged.changes.geometry = { ...merged.changes.geometry, size: delta.changes.geometry.size };
+      }
+
+      if (delta.changes.style) {
+        merged.changes.style = { ...(merged.changes.style ?? {}), ...delta.changes.style };
+      }
+
+      if (delta.changes.content) {
+        merged.changes.content = delta.changes.content;
+      }
+
+      return prev.map(d => d.target_selector === delta.target_selector ? merged : d);
+    });
   }, []);
 
   const navigateSlide = (direction: 'next' | 'prev') => {
@@ -145,6 +190,8 @@ export default function Home() {
 
       setHtml(data.refactoredHtml);
       setDeltas([]);
+      setTargets([]);
+      setHtmlKey(k => k + 1);
       await fetch('/api/storage/write', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -258,34 +305,85 @@ export default function Home() {
           >
             {isRefactoring ? 'REFACTORING...' : 'SYNC WITH AI'}
           </button>
+
+          <button
+            onClick={() => setShowDebug(p => !p)}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest border transition-all ${showDebug ? 'bg-amber-400 border-amber-400 text-black' : 'bg-white border-gray-200 text-gray-400 hover:text-amber-500 hover:border-amber-300'}`}
+          >
+            DEBUG
+          </button>
         </div>
       </header>
 
-      <main className="flex-grow flex justify-center p-12 overflow-hidden">
-        <div 
-          className={`relative w-full max-w-[1400px] bg-white shadow-[0_40px_100px_rgba(0,0,0,0.12)] rounded-2xl border border-gray-100 overflow-hidden transition-all duration-500 ${isEditMode ? 'ring-4 ring-blue-500/10' : ''}`} 
-          style={{ aspectRatio: '16/9' }}
-          onClick={() => setIsKeyboardActive(true)}
-        >
-          <IframeRenderer ref={iframeRef} htmlContent={html} />
-          <InteractionOverlay 
-            iframeRef={iframeRef} 
-            onChange={handleDeltaChange}
-            isEditMode={isEditMode}
-          />
-          
-          {isEditMode && (
-             <div className="absolute bottom-6 left-6 pointer-events-none bg-blue-600/90 backdrop-blur-md text-white px-4 py-2 rounded-lg text-[10px] font-black tracking-widest shadow-2xl animate-fade-in-up">
+      <main className="flex-grow flex overflow-hidden">
+        {/* Canvas area */}
+        <div className="flex-grow flex justify-center p-12 overflow-hidden min-w-0">
+          <div
+            className={`relative w-full max-w-[1400px] bg-white shadow-[0_40px_100px_rgba(0,0,0,0.12)] rounded-2xl border border-gray-100 overflow-hidden transition-all duration-500 ${isEditMode ? 'ring-4 ring-blue-500/10' : ''}`}
+            style={{ aspectRatio: '16/9', alignSelf: 'center' }}
+            onClick={() => setIsKeyboardActive(true)}
+          >
+            <IframeRenderer ref={iframeRef} htmlContent={html} />
+            <InteractionOverlay
+              iframeRef={iframeRef}
+              onChange={handleDeltaChange}
+              isEditMode={isEditMode}
+              targets={targets}
+              onTargetsChange={setTargets}
+              onDebugInfo={setDebugInfo}
+            />
+
+            {isEditMode && (
+              <div className="absolute bottom-6 left-6 pointer-events-none bg-blue-600/90 backdrop-blur-md text-white px-4 py-2 rounded-lg text-[10px] font-black tracking-widest shadow-2xl animate-fade-in-up">
                 MANIPULATION MODE ACTIVE
-             </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Layer panel */}
+        <LayerPanel
+          iframeRef={iframeRef}
+          selectedElements={targets}
+          onSelectionChange={setTargets}
+          htmlKey={htmlKey}
+        />
       </main>
 
       {error && (
         <div className="fixed bottom-8 right-8 bg-red-500 text-white px-8 py-4 rounded-2xl shadow-[0_20px_50px_rgba(239,68,68,0.3)] z-50 flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
           <span className="text-xs font-black tracking-widest uppercase">{error}</span>
+        </div>
+      )}
+
+      {showDebug && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 text-green-400 font-mono text-[11px] p-4 border-t border-green-900 max-h-64 overflow-y-auto">
+          <div className="flex items-center gap-6 mb-2">
+            <span className="text-green-600 font-black uppercase tracking-widest">DEBUG PANEL</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${debugInfo?.zoom && debugInfo.zoom !== 1 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+              ZOOM: {debugInfo?.zoom?.toFixed(4) ?? '—'}
+            </span>
+            <span className="text-gray-500">SOURCE: <span className="text-yellow-400">{debugInfo?.zoomSource ?? '—'}</span></span>
+            <span className="text-gray-500">TARGETS: <span className="text-white">{debugInfo?.targetCount ?? 0}</span></span>
+          </div>
+
+          <div className="mb-2">
+            <span className="text-gray-500">LAST SELECTOR: </span>
+            <span className="text-cyan-400">{debugInfo?.lastSelector ?? '—'}</span>
+          </div>
+
+          <div className="mb-3">
+            <span className="text-gray-500">LAST DELTA TYPE: </span>
+            <span className="text-purple-400">{debugInfo?.lastDeltaType ?? '—'}</span>
+          </div>
+
+          <div>
+            <span className="text-gray-500 block mb-1">PENDING DELTAS ({deltas.length}):</span>
+            <pre className="text-green-300 whitespace-pre-wrap break-all leading-relaxed">
+              {deltas.length > 0 ? JSON.stringify(deltas, null, 2) : 'none'}
+            </pre>
+          </div>
         </div>
       )}
     </div>
