@@ -21,6 +21,8 @@ interface StyleValues {
   fontSize: string;
   fontWeight: string;
   fontFamily: string;
+  fontStyle: string;
+  textDecorationLine: string;
   opacity: string;
   borderRadius: string;
   letterSpacing: string;
@@ -135,9 +137,11 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         fontSize: Math.round(parseFloat(cs.fontSize)).toString(),
         fontWeight: cs.fontWeight,
         fontFamily: cs.fontFamily.split(',')[0].replace(/['"]/g, '').trim(),
-        opacity: parseFloat(cs.opacity).toString(),
-        borderRadius: Math.round(parseFloat(cs.borderRadius || '0')).toString(),
-        letterSpacing: parseFloat(cs.letterSpacing || '0').toString(),
+        fontStyle: cs.fontStyle,
+        textDecorationLine: cs.textDecorationLine || cs.textDecoration.split(' ')[0] || 'none',
+        opacity: isNaN(parseFloat(cs.opacity)) ? '1' : parseFloat(cs.opacity).toString(),
+        borderRadius: isNaN(parseFloat(cs.borderRadius)) ? '0' : Math.round(parseFloat(cs.borderRadius)).toString(),
+        letterSpacing: isNaN(parseFloat(cs.letterSpacing)) ? '0' : parseFloat(cs.letterSpacing).toString(),
       };
       setSelectedStyles(styles);
       styleSnapshot.current = { ...styles };
@@ -347,8 +351,40 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       onTargetsChange([]);
     };
 
+    const handleFormatShortcuts = (e: KeyboardEvent) => {
+      if (!isEditMode || targets.length !== 1 || !styleSnapshot.current) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || editingElement) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'b') {
+          e.preventDefault();
+          const currentWeight = styleSnapshot.current.fontWeight || '400';
+          const isBold = currentWeight >= '600' || currentWeight === 'bold';
+          handleStyleChange('fontWeight', isBold ? '400' : '700', isBold ? '400' : '700');
+        } else if (e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          const currentStyle = styleSnapshot.current.fontStyle || 'normal';
+          const isItalic = currentStyle === 'italic';
+          handleStyleChange('fontStyle', isItalic ? 'normal' : 'italic', isItalic ? 'normal' : 'italic');
+        } else if (e.key.toLowerCase() === 'u') {
+          e.preventDefault();
+          const currentDeco = styleSnapshot.current.textDecorationLine || '';
+          const isUnderline = currentDeco.includes('underline');
+          let newDeco = currentDeco.replace('underline', '').replace('none', '').trim();
+          if (!isUnderline) newDeco += ' underline';
+          newDeco = newDeco.trim() || 'none';
+          handleStyleChange('textDecorationLine', newDeco, newDeco);
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleDelete);
-    return () => window.removeEventListener('keydown', handleDelete);
+    window.addEventListener('keydown', handleFormatShortcuts);
+    return () => {
+      window.removeEventListener('keydown', handleDelete);
+      window.removeEventListener('keydown', handleFormatShortcuts);
+    };
   }, [isEditMode, targets, editingElement, onChange, onDebugInfo, zoom, generateSelector]);
 
   const onDragStart = (e: OnDragStart) => {
@@ -517,25 +553,60 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
               <svg className="w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
             </label>
 
-            {/* Font Weight */}
-            <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors pr-2">
-               <div className="pl-2.5 pr-1.5 py-1.5 flex items-center text-gray-400">
-                 <span className="text-[10px] font-black">W</span>
-               </div>
-               <select
-                 value={selectedStyles.fontWeight}
-                 onFocus={() => onActionStart?.()}
-                 onChange={e => handleStyleChange('fontWeight', e.target.value, e.target.value)}
-                 className="w-full text-[11px] font-semibold py-1.5 px-1 focus:outline-none bg-transparent appearance-none text-gray-700 cursor-pointer"
+            {/* Format Toggles */}
+            <div className="col-span-2 flex items-center bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden p-1 shadow-sm">
+               <button
+                 onPointerDown={() => onActionStart?.()}
+                 onClick={() => {
+                   const isBold = selectedStyles.fontWeight >= '600' || selectedStyles.fontWeight === 'bold';
+                   handleStyleChange('fontWeight', isBold ? '400' : '700', isBold ? '400' : '700');
+                 }}
+                 className={`flex-1 py-1.5 flex justify-center items-center rounded text-[13px] font-serif transition-colors ${selectedStyles.fontWeight >= '600' || selectedStyles.fontWeight === 'bold' ? 'bg-blue-100 text-blue-700 fill-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
                >
-                 {FONT_WEIGHTS.map(w => <option key={w} value={w}>{w === '400' ? '400 Regular' : w === '700' ? '700 Bold' : w}</option>)}
-               </select>
-            </label>
+                 <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" className="fill-current"><path d="M2.5 10.5V1.5H6.084C6.961 1.5 7.643 1.705 8.129 2.115C8.615 2.518 8.858 3.064 8.858 3.754C8.858 4.606 8.358 5.253 7.359 5.696V5.753C8.636 6.074 9.274 6.837 9.274 8.043C9.274 8.825 9 9.431 8.455 9.862C7.917 10.287 7.07 10.5 5.912 10.5H2.5ZM4.398 5.228H5.733C6.313 5.228 6.746 5.106 7.031 4.862C7.323 4.611 7.469 4.253 7.469 3.788C7.469 3.293 7.323 2.924 7.031 2.68C6.739 2.43 6.305 2.305 5.733 2.305H4.398V5.228ZM4.398 9.695H6.078C6.716 9.695 7.199 9.553 7.529 9.271C7.865 8.981 8.034 8.563 8.034 8.016C8.034 7.514 7.867 7.12 7.534 6.834C7.208 6.541 6.721 6.395 6.072 6.395H4.398V9.695Z" /></svg>
+               </button>
+               <button
+                 onPointerDown={() => onActionStart?.()}
+                 onClick={() => {
+                   const isItalic = selectedStyles.fontStyle === 'italic';
+                   handleStyleChange('fontStyle', isItalic ? 'normal' : 'italic', isItalic ? 'normal' : 'italic');
+                 }}
+                 className={`flex-1 py-1.5 flex justify-center items-center rounded text-[13px] font-serif transition-colors ${selectedStyles.fontStyle === 'italic' ? 'bg-blue-100 text-blue-700 fill-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+               >
+                 <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" className="fill-current"><path d="M4.536 10.5H2.404L4.856 1.5H6.988L4.536 10.5Z" /></svg>
+               </button>
+               <button
+                 onPointerDown={() => onActionStart?.()}
+                 onClick={() => {
+                   const isUnderline = (selectedStyles.textDecorationLine || '').includes('underline');
+                   let newDeco = (selectedStyles.textDecorationLine || '').replace('underline', '').replace('none', '').trim();
+                   if (!isUnderline) newDeco += ' underline';
+                   newDeco = newDeco.trim() || 'none';
+                   handleStyleChange('textDecorationLine', newDeco, newDeco);
+                 }}
+                 className={`flex-1 py-1.5 flex justify-center items-center rounded text-[13px] font-serif transition-colors ${(selectedStyles.textDecorationLine || '').includes('underline') ? 'bg-blue-100 text-blue-700 fill-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+               >
+                 <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" className="fill-current"><path d="M5.426 8.5C3.332 8.5 2.285 7.07 2.285 4.21V1.5H3.693V4.254C3.693 6.302 4.316 7.326 5.56 7.326C6.776 7.326 7.385 6.275 7.385 4.172V1.5H8.799V4.21C8.799 7.07 7.72 8.5 5.426 8.5ZM1.5 10.5H9.5V9.33H1.5V10.5Z" /></svg>
+               </button>
+               <button
+                 onPointerDown={() => onActionStart?.()}
+                 onClick={() => {
+                   const isStrike = (selectedStyles.textDecorationLine || '').includes('line-through');
+                   let newDeco = (selectedStyles.textDecorationLine || '').replace('line-through', '').replace('none', '').trim();
+                   if (!isStrike) newDeco += ' line-through';
+                   newDeco = newDeco.trim() || 'none';
+                   handleStyleChange('textDecorationLine', newDeco, newDeco);
+                 }}
+                 className={`flex-1 py-1.5 flex justify-center items-center rounded text-[13px] transition-colors ${(selectedStyles.textDecorationLine || '').includes('line-through') ? 'bg-blue-100 text-blue-700 fill-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+               >
+                 <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" className="fill-current"><path d="M10 5.5H1V6.5H10V5.5ZM7.689 3.018C7.549 2.502 6.953 2.1 5.766 2.1C4.426 2.1 3.596 2.652 3.551 3.693H2.039C2.084 1.954 3.518 0.81 5.766 0.81C7.886 0.81 9.07 1.83 9.07 3.253H7.689V3.018ZM3.385 8.798C3.595 9.42 4.364 9.932 5.592 9.932C7.039 9.932 8.006 9.384 8.006 8.217H9.539C9.539 10.158 8.04 11.236 5.592 11.236C3.21 11.236 1.986 10.144 1.986 8.563H3.385V8.798Z" /></svg>
+               </button>
+            </div>
 
             {/* Font Size */}
             <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors">
-              <div className="pl-2.5 flex items-center text-gray-400">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+              <div className="pl-3 pr-2 py-1.5 flex items-center border-r border-gray-100">
+                <span className="text-[10px] font-black text-gray-400">Size</span>
               </div>
               <input
                 type="number"
