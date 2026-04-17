@@ -12,7 +12,6 @@ interface InteractionOverlayProps {
   targets: Array<HTMLElement | SVGElement>;
   onTargetsChange: (targets: Array<HTMLElement | SVGElement>) => void;
   onDebugInfo?: (info: DebugInfo) => void;
-  onActionStart?: () => void;
 }
 
 interface StyleValues {
@@ -34,7 +33,7 @@ function rgbToHex(rgb: string): string {
   return '#' + result.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
 }
 
-export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode, targets, onTargetsChange, onDebugInfo, onActionStart }) => {
+export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode, targets, onTargetsChange, onDebugInfo }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const moveableRef = useRef<Moveable>(null);
   const [iframeWindow, setIframeWindow] = useState<Window | null>(null);
@@ -184,7 +183,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         * {
           transition: none !important;
           animation: none !important;
-          user-select: none !important;
         }
       `;
       doc.head.appendChild(styleEl);
@@ -242,13 +240,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       
       const el = e.target as HTMLElement;
       if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
-        onActionStart?.();
-        const selection = iframeWindow?.getSelection();
-        const savedRange =
-          selection && selection.rangeCount > 0
-            ? selection.getRangeAt(0)
-            : null;
-
         setEditingElement(el);
         onTargetsChange([]); // Hide moveable handles while editing text
         initialContent.current = el.innerText;
@@ -260,12 +251,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         el.style.borderRadius = "2px";
         el.style.cursor = "text";
         el.focus();
-
-        if (savedRange && iframeWindow) {
-          const sel = iframeWindow.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(savedRange);
-        }
         
         // Stop event propagation inside the element to allow native text selection and keyboard usage
         const stopProp = (ev: Event) => ev.stopPropagation();
@@ -337,7 +322,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       if (targets.length === 0) return;
 
       e.preventDefault();
-      onActionStart?.();
       targets.forEach(target => {
         const selector = generateSelector(target as HTMLElement);
         onChange({ target_selector: selector, deleted: true, changes: {} });
@@ -352,7 +336,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
   }, [isEditMode, targets, editingElement, onChange, onDebugInfo, zoom, generateSelector]);
 
   const onDragStart = (e: OnDragStart) => {
-    onActionStart?.();
     initialRects.current.set(e.target as HTMLElement | SVGElement, e.target.getBoundingClientRect());
   };
 
@@ -385,7 +368,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
   };
 
   const onResizeStart = (e: OnResizeStart) => {
-    onActionStart?.();
     e.setOrigin(['%', '%']);
     initialRects.current.set(e.target as HTMLElement | SVGElement, e.target.getBoundingClientRect());
   };
@@ -426,12 +408,6 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     }
   };
 
-  // Find the portal root for the styles panel
-  const [stylePortalRoot, setStylePortalRoot] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    setStylePortalRoot(document.getElementById('style-panel-portal'));
-  }, []);
-
   if (!iframeWindow) return null;
 
   const FONT_WEIGHTS = ['300', '400', '500', '600', '700', '800', '900'];
@@ -442,181 +418,125 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       ref={containerRef}
       className="absolute inset-0 z-10 pointer-events-none"
     >
-      {/* Style Panel Portal */}
-      {isEditMode && selectedStyles && !editingElement && stylePortalRoot && createPortal(
+      {/* Style Panel */}
+      {isEditMode && selectedStyles && !editingElement && (
         <div
-          className="flex flex-col gap-6 p-5 pointer-events-auto w-full h-full content-start overflow-y-auto font-sans"
+          className="absolute top-2 left-1/2 -translate-x-1/2 z-20 bg-white border border-gray-200 rounded-xl shadow-xl px-3 py-2 flex items-center gap-3 pointer-events-auto flex-wrap"
           onMouseDown={e => e.stopPropagation()}
         >
-          <style dangerouslySetInnerHTML={{__html: `
-            input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-            input[type="range"] { -webkit-appearance: none; background: transparent; }
-            input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: #ffffff; border: 2.5px solid #2563eb; cursor: pointer; margin-top: -5px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); transition: transform 0.1s; }
-            input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
-            input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #e5e7eb; border-radius: 2px; }
-            .color-well::-webkit-color-swatch-wrapper { padding: 0; }
-            .color-well::-webkit-color-swatch { border: none; border-radius: 4px; }
-          `}} />
+          {/* Text Color */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Text</span>
+            <input
+              type="color"
+              value={selectedStyles.color}
+              onChange={e => handleStyleChange('color', e.target.value, e.target.value)}
+              className="w-7 h-7 rounded cursor-pointer border border-gray-200"
+            />
+          </label>
 
-          {/* Colors Section */}
-          <div className="flex gap-3">
-            {/* Text Color */}
-            <label className="flex-1 flex flex-col gap-1.5" onPointerDown={() => onActionStart?.()}>
-              <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10M9 17h6M12 3L7 17h10L12 3z"/></svg>
-                Fill
-              </span>
-              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1.5 shadow-sm hover:border-blue-400 transition-colors cursor-pointer group focus-within:ring-2 focus-within:ring-blue-500/20">
-                <input
-                  type="color"
-                  value={selectedStyles.color}
-                  onChange={e => handleStyleChange('color', e.target.value, e.target.value)}
-                  className="color-well w-5 h-5 cursor-pointer bg-transparent"
-                />
-                <span className="text-[11px] font-mono text-gray-700 tracking-wide uppercase">{selectedStyles.color}</span>
-              </div>
-            </label>
+          <div className="w-px h-8 bg-gray-200" />
 
-            {/* Background Color */}
-            <label className="flex-1 flex flex-col gap-1.5" onPointerDown={() => onActionStart?.()}>
-               <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                 <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                 Background
-               </span>
-               <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1.5 shadow-sm hover:border-blue-400 transition-colors cursor-pointer group focus-within:ring-2 focus-within:ring-blue-500/20">
-                  <input
-                    type="color"
-                    value={selectedStyles.backgroundColor}
-                    onChange={e => handleStyleChange('backgroundColor', e.target.value, e.target.value)}
-                    className="color-well w-5 h-5 cursor-pointer bg-transparent"
-                  />
-                  <span className="text-[11px] font-mono text-gray-700 tracking-wide uppercase">{selectedStyles.backgroundColor}</span>
-               </div>
-            </label>
-          </div>
+          {/* Background Color */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">BG</span>
+            <input
+              type="color"
+              value={selectedStyles.backgroundColor}
+              onChange={e => handleStyleChange('backgroundColor', e.target.value, e.target.value)}
+              className="w-7 h-7 rounded cursor-pointer border border-gray-200"
+            />
+          </label>
 
-          <div className="h-px bg-gray-100 w-full" />
+          <div className="w-px h-8 bg-gray-200" />
 
-          {/* Typography Section */}
-          <div className="grid grid-cols-2 gap-4">
-            <span className="col-span-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-[-4px]">Typography</span>
-            
-            {/* Font Family */}
-            <label className="col-span-2 flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors pr-2">
-              <div className="pl-3 pr-2 py-2 flex items-center text-gray-400 border-r border-gray-100">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
-              </div>
-              <select
-                value={selectedStyles.fontFamily}
-                onFocus={() => onActionStart?.()}
-                onChange={e => handleStyleChange('fontFamily', e.target.value, e.target.value)}
-                className="w-full text-xs font-semibold py-2 px-3 focus:outline-none bg-transparent appearance-none text-gray-700 cursor-pointer"
-              >
-                {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-              <svg className="w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
-            </label>
+          {/* Font Size */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Size</span>
+            <input
+              type="number"
+              value={selectedStyles.fontSize}
+              min={6}
+              max={200}
+              onChange={e => setSelectedStyles(prev => prev ? { ...prev, fontSize: e.target.value } : null)}
+              onBlur={e => handleStyleChange('fontSize', e.target.value, `${e.target.value}px`)}
+              className="w-12 text-center text-[11px] font-bold border border-gray-200 rounded-md py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </label>
 
-            {/* Font Weight */}
-            <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors pr-2">
-               <div className="pl-2.5 pr-1.5 py-1.5 flex items-center text-gray-400">
-                 <span className="text-[10px] font-black">W</span>
-               </div>
-               <select
-                 value={selectedStyles.fontWeight}
-                 onFocus={() => onActionStart?.()}
-                 onChange={e => handleStyleChange('fontWeight', e.target.value, e.target.value)}
-                 className="w-full text-[11px] font-semibold py-1.5 px-1 focus:outline-none bg-transparent appearance-none text-gray-700 cursor-pointer"
-               >
-                 {FONT_WEIGHTS.map(w => <option key={w} value={w}>{w === '400' ? '400 Regular' : w === '700' ? '700 Bold' : w}</option>)}
-               </select>
-            </label>
+          {/* Font Weight */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Weight</span>
+            <select
+              value={selectedStyles.fontWeight}
+              onChange={e => handleStyleChange('fontWeight', e.target.value, e.target.value)}
+              className="text-[11px] font-bold border border-gray-200 rounded-md py-1 px-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+            >
+              {FONT_WEIGHTS.map(w => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </label>
 
-            {/* Font Size */}
-            <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors">
-              <div className="pl-2.5 flex items-center text-gray-400">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
-              </div>
-              <input
-                type="number"
-                value={selectedStyles.fontSize}
-                onFocus={() => onActionStart?.()}
-                onChange={e => setSelectedStyles(prev => prev ? { ...prev, fontSize: e.target.value } : null)}
-                onBlur={e => handleStyleChange('fontSize', e.target.value, `${e.target.value}px`)}
-                className="w-full text-[11px] font-semibold py-1.5 px-2 focus:outline-none bg-transparent text-gray-700"
-              />
-            </label>
-          </div>
+          {/* Font Family */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Font</span>
+            <select
+              value={selectedStyles.fontFamily}
+              onChange={e => handleStyleChange('fontFamily', e.target.value, e.target.value)}
+              className="text-[11px] font-bold border border-gray-200 rounded-md py-1 px-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white max-w-[100px]"
+            >
+              {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </label>
 
-          <div className="h-px bg-gray-100 w-full" />
+          <div className="w-px h-8 bg-gray-200" />
 
-          {/* Details Section */}
-          <div className="grid grid-cols-2 gap-4">
-            <span className="col-span-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-[-4px]">Details</span>
-            
-            {/* Radius */}
-            <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors">
-               <div className="pl-2.5 flex items-center text-gray-400">
-                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
-               </div>
-               <input
-                 type="number"
-                 value={selectedStyles.borderRadius}
-                 onFocus={() => onActionStart?.()}
-                 onChange={e => setSelectedStyles(prev => prev ? { ...prev, borderRadius: e.target.value } : null)}
-                 onBlur={e => handleStyleChange('borderRadius', e.target.value, `${e.target.value}px`)}
-                 className="w-full text-[11px] font-semibold py-1.5 px-2 focus:outline-none bg-transparent text-gray-700"
-               />
-            </label>
+          {/* Opacity */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Opacity</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={selectedStyles.opacity}
+              onChange={e => handleStyleChange('opacity', e.target.value, e.target.value)}
+              className="w-16 accent-blue-600"
+            />
+          </label>
 
-            {/* Tracking */}
-            <label className="flex items-center bg-white border border-gray-200 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-colors">
-               <div className="pl-2.5 flex items-center text-gray-400">
-                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-               </div>
-               <input
-                 type="number"
-                 value={selectedStyles.letterSpacing}
-                 step={0.5}
-                 onFocus={() => onActionStart?.()}
-                 onChange={e => setSelectedStyles(prev => prev ? { ...prev, letterSpacing: e.target.value } : null)}
-                 onBlur={e => handleStyleChange('letterSpacing', e.target.value, `${e.target.value}px`)}
-                 className="w-full text-[11px] font-semibold py-1.5 px-2 focus:outline-none bg-transparent text-gray-700"
-               />
-            </label>
-            
-            {/* Opacity */}
-            <label className="col-span-2 flex items-center gap-3 mt-1">
-              <div className="flex flex-col flex-1 gap-1.5">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    Opacity
-                  </span>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{Math.round(parseFloat(selectedStyles.opacity) * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  onPointerDown={() => onActionStart?.()}
-                  value={selectedStyles.opacity}
-                  onChange={e => handleStyleChange('opacity', e.target.value, e.target.value)}
-                  className="w-full px-1"
-                />
-              </div>
-            </label>
+          {/* Border Radius */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Radius</span>
+            <input
+              type="number"
+              value={selectedStyles.borderRadius}
+              min={0}
+              max={999}
+              onChange={e => setSelectedStyles(prev => prev ? { ...prev, borderRadius: e.target.value } : null)}
+              onBlur={e => handleStyleChange('borderRadius', e.target.value, `${e.target.value}px`)}
+              className="w-12 text-center text-[11px] font-bold border border-gray-200 rounded-md py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </label>
 
-          </div>
-        </div>,
-        stylePortalRoot
+          {/* Letter Spacing */}
+          <label className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Tracking</span>
+            <input
+              type="number"
+              value={selectedStyles.letterSpacing}
+              step={0.5}
+              onChange={e => setSelectedStyles(prev => prev ? { ...prev, letterSpacing: e.target.value } : null)}
+              onBlur={e => handleStyleChange('letterSpacing', e.target.value, `${e.target.value}px`)}
+              className="w-12 text-center text-[11px] font-bold border border-gray-200 rounded-md py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </label>
+        </div>
       )}
 
       {isEditMode && !editingElement && iframeWindow && createPortal(
         <Moveable
           ref={moveableRef}
-          target={targets.length === 1 ? targets[0] : targets}
+          target={targets}
           container={iframeWindow.document.body}
           draggable={true}
           resizable={true}

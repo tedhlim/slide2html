@@ -33,16 +33,7 @@ function getLabel(el: HTMLElement | SVGElement): { tag: string; qualifier: strin
   const id = el.id ? `#${el.id}` : '';
   const firstClass = el.classList[0] ? `.${el.classList[0]}` : '';
   const qualifier = id || firstClass;
-  
-  // Only extract text that directly belongs to this element, ignoring nested HTML tags
-  let directText = '';
-  for (const node of Array.from(el.childNodes)) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-      directText += node.textContent + ' ';
-    }
-  }
-  const text = directText.replace(/\s+/g, ' ').trim().slice(0, 28);
-  
+  const text = (el as HTMLElement).innerText?.replace(/\s+/g, ' ').trim().slice(0, 28) ?? '';
   return { tag, qualifier, preview: text };
 }
 
@@ -55,30 +46,14 @@ interface TreeNodeViewProps {
 }
 
 const TreeNodeView: React.FC<TreeNodeViewProps> = ({ node, depth, selected, onSelect, defaultExpanded }) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const isSelected = selected.includes(node.el);
-  const hasSelectedDescendant = selected.some(sel => node.el.contains(sel) && node.el !== sel);
-  const [expanded, setExpanded] = useState(defaultExpanded || hasSelectedDescendant);
   const hasChildren = node.children.length > 0;
   const { tag, qualifier, preview } = getLabel(node.el as HTMLElement);
-  
-  const itemRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (hasSelectedDescendant) {
-      setExpanded(true);
-    }
-  }, [hasSelectedDescendant]);
-
-  React.useEffect(() => {
-    if (isSelected && itemRef.current) {
-      itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [isSelected]);
 
   return (
     <div>
       <div
-        ref={itemRef}
         className={`flex items-center gap-1 py-[3px] cursor-pointer rounded-md text-[11px] group select-none ${
           isSelected
             ? 'bg-blue-500 text-white'

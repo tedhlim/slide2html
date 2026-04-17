@@ -19,6 +19,7 @@ export default function Home() {
   const [showDebug, setShowDebug] = useState<boolean>(false);
   const [targets, setTargets] = useState<Array<HTMLElement | SVGElement>>([]);
   const [htmlKey, setHtmlKey] = useState<number>(0);
+  const [history, setHistory] = useState<{ bodyHtml: string; deltas: VisualDelta[] }[]>([]);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +36,7 @@ export default function Home() {
         setDeltas([]);
         setTargets([]);
         setHtmlKey(k => k + 1);
+        setHistory([]);
         try {
           setIsSaving(true);
           const res = await fetch('/api/storage/write', {
@@ -65,6 +67,7 @@ export default function Home() {
         if (!res.ok) throw new Error('Failed to fetch document');
         const data = await res.json();
         setHtml(data.html || '');
+        setHistory([]);
       } catch (err: any) {
         console.error(err);
         setError(err.message || 'An error occurred while loading the document.');
@@ -75,16 +78,35 @@ export default function Home() {
     fetchDocument();
   }, []);
 
-  // Keyboard Passthrough: Forward keys to the iframe's document
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+    setDeltas(last.deltas);
+    setTargets([]);
+    
+    const iframe = iframeRef.current;
+    if (iframe?.contentWindow?.document) {
+      iframe.contentWindow.document.body.innerHTML = last.bodyHtml;
+    }
+  }, [history]);
+
+  // Keyboard Passthrough & Undo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       
+      // Handle Undo (Ctrl+Z / Cmd+Z)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
       const navKeys = ['ArrowRight', 'ArrowLeft', ' ', 'PageDown', 'PageUp', 'g', 'G'];
       if (navKeys.includes(e.key)) {
         const iframe = iframeRef.current;
         if (iframe && iframe.contentWindow && iframe.contentWindow.document) {
-          // Dispatch to document specifically as that's where the listener is
           iframe.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', {
             key: e.key,
             code: e.code,
@@ -97,7 +119,20 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleUndo]);
+
+  const pushHistoryState = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (iframe?.contentWindow?.document.body) {
+      const currentHtml = iframe.contentWindow.document.body.innerHTML;
+      setHistory(prev => {
+        if (prev.length > 0 && prev[prev.length - 1].bodyHtml === currentHtml) {
+          return prev;
+        }
+        return [...prev, { bodyHtml: currentHtml, deltas: [...deltas] }];
+      });
+    }
+  }, [deltas]);
 
   const handleDeltaChange = useCallback((delta: VisualDelta) => {
     setDeltas((prev) => {
@@ -192,6 +227,7 @@ export default function Home() {
       setDeltas([]);
       setTargets([]);
       setHtmlKey(k => k + 1);
+      setHistory([]);
       await fetch('/api/storage/write', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,6 +327,15 @@ export default function Home() {
           </button>
           
           <button
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 hover:border-gray-400 text-gray-600 hover:text-black rounded-xl text-[10px] font-black tracking-widest transition-all disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+            UNDO
+          </button>
+          
+          <button
             onClick={handleSave}
             disabled={isSaving}
             className="px-6 py-2 bg-white border border-gray-200 hover:border-blue-200 hover:text-blue-600 text-gray-600 rounded-xl text-[10px] font-black tracking-widest transition-all disabled:opacity-30"
@@ -331,6 +376,7 @@ export default function Home() {
               targets={targets}
               onTargetsChange={setTargets}
               onDebugInfo={setDebugInfo}
+              onActionStart={pushHistoryState}
             />
 
             {isEditMode && (
@@ -341,13 +387,33 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Layer panel */}
-        <LayerPanel
-          iframeRef={iframeRef}
-          selectedElements={targets}
-          onSelectionChange={setTargets}
-          htmlKey={htmlKey}
-        />
+        {/* Right Sidebar */}
+        <div className="w-72 bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0 z-20">
+          {/* Upper Right: Editing Tools Portal */}
+          <div className="flex flex-col border-b border-gray-200 shrink-0">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-white">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Design</span>
+            </div>
+            <div id="style-panel-portal" className="bg-gray-50/50 flex-grow relative min-h-[120px]">
+              {/* React Portal will inject standard editing tools here automatically */}
+              {targets.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p className="text-[11px] text-gray-400 font-medium">Select an element to edit</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Lower Right: Layer panel */}
+          <div className="flex-grow flex flex-col overflow-hidden relative">
+            <LayerPanel
+              iframeRef={iframeRef}
+              selectedElements={targets}
+              onSelectionChange={setTargets}
+              htmlKey={htmlKey}
+            />
+          </div>
+        </div>
       </main>
 
       {error && (
