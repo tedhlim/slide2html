@@ -107,11 +107,11 @@ export async function POST(req: NextRequest) {
 
       // 2. Geometry or Style Updates (Require AI to translate into Tailwind)
       if (delta.changes?.geometry || delta.changes?.style) {
-        let parent = target.parent();
+        let parent: cheerio.Cheerio<any> = target.parent();
         
         // Prevent grabbing the entire deck/body
         if (parent.attr('id') === 'deck' || parent.hasClass('deck') || parent.is('body')) {
-          parent = target;
+          parent = target as cheerio.Cheerio<any>;
         }
 
         if (parent.length > 0) {
