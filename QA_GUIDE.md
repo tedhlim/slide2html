@@ -19,8 +19,34 @@ When initiating a QA run, the agent must sequentially perform the following inte
 - [ ] Target the center of the same text element and execute a rapid double-click.
 - [ ] **ASSERT**: The visual framework engages `contentEditable` mode (verifiable if the element adopts a blue rim or cursor changes to a text prompt).
 - [ ] **ASSERT**: The overarching presentation deck counter (e.g., Slide 1/30) has NOT advanced or flipped backward due to event propagation.
+- [ ] While inside edit mode, type new text and press keyboard arrow keys (Left/Right). 
+- [ ] **ASSERT**: Navigational arrows successfully move the text caret within the paragraph but completely fail to trigger the iframe's global slide-transition events.
 
 ### 4. Re-synchronization Pipeline
 - [ ] Click off the element onto a blank space to trigger the `onBlur` effect.
-- [ ] Change textual content by simulating keystrokes if possible.
-- [ ] If required by current implementation, execute save/sync endpoints to confirm that the `VisualDelta` API payload successfully fires locally.
+- [ ] **ASSERT**: The updated text remains on the screen, and the top navigation panel increments the "X DELTAS READY" warning indicator.
+- [ ] Click the blue `SYNC WITH AI` button on the top toolbar.
+- [ ] **ASSERT**: The button enters a `REFACTORING...` loading state.
+- [ ] If required by current implementation, intercept the `/api/refactor` endpoint to mock an AI response and confirm that the document reloads cleanly and clears the delta queue without breaking Moveable.
+
+### 5. Suite 5: History Management (UNDO Protocol)
+- [ ] Select any element (e.g., text or container) and press the `Delete` key. 
+- [ ] **ASSERT**: The target element visually disappears from the page.
+- [ ] Trigger an Undo action via the `UNDO` toolbar button or `Ctrl+Z` / `Cmd+Z`.
+- [ ] **ASSERT**: The deleted element is restored perfectly to the DOM, and selecting it again produces a valid Moveable frame.
+- [ ] Move an element with a drag, then press `Ctrl+Z`. 
+- [ ] **ASSERT**: The drag position instantly snaps back to standard location.
+
+### 6. Suite 6: Right Sidebar / Style Portal
+- [ ] Check that no layer is selected.
+- [ ] **ASSERT**: The right sidebar design panel shows a gray placeholder "Select an element to edit".
+- [ ] Select a text element.
+- [ ] **ASSERT**: The right sidebar dynamically mounts the premium design tool panel containing Opacity slider, Typography selects, and Custom Color wells.
+- [ ] Focus a number input (e.g. `Font Size`), type a new value, and click away.
+- [ ] **ASSERT**: The visual text size inside the rendering iframe universally updates.
+- [ ] Press the `UNDO` toolbar button.
+- [ ] **ASSERT**: The size styling snaps back to its previous bounds.
+
+### 7. Suite 7: Bounding Box Offset Accuracy
+- [ ] Select a large outer container (e.g., the root `.grid` bounding box wrapping the slide elements).
+- [ ] **ASSERT**: The blue interactive `Moveable` selection borders and corner handles precisely snap to the edges of the box layout without any vertical drift, confirming zero parent-iframe coordinate bleed.
