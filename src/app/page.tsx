@@ -24,6 +24,28 @@ export default function Home() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleExport = () => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    
+    let fullHtml = iframe.contentWindow.document.documentElement.outerHTML;
+    // Strip the internal editing override styles so the exported file plays its native animations naturally
+    fullHtml = fullHtml.replace(/<style id="slide2html-edit-override">[\s\S]*?<\/style>/i, '');
+    const finalHtml = `<!DOCTYPE html>\n${fullHtml}`;
+    
+    const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'slide.html';
+    document.body.appendChild(a);
+    a.click();
+    
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -253,7 +275,7 @@ export default function Home() {
   const hasUnsavedChanges = deltas.length > 0;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#f1f3f5] font-sans selection:bg-blue-100">
+    <div className="flex flex-col h-screen bg-[#f1f3f5] font-sans selection:bg-blue-100">
       <header className="bg-white border-b border-gray-200 px-6 py-2.5 flex items-center justify-between shadow-sm z-30">
         <div className="flex items-center space-x-8">
           <div className="flex items-center space-x-3">
@@ -324,6 +346,13 @@ export default function Home() {
             className="px-6 py-2 bg-white border border-gray-200 hover:border-blue-200 hover:text-blue-600 text-gray-600 rounded-xl text-[10px] font-black tracking-widest transition-all"
           >
             UPLOAD
+          </button>
+          
+          <button
+            onClick={handleExport}
+            className="px-6 py-2 bg-white border border-gray-200 hover:border-green-200 hover:text-green-600 text-gray-600 rounded-xl text-[10px] font-black tracking-widest transition-all"
+          >
+            EXPORT
           </button>
           
           <button

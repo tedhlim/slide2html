@@ -176,7 +176,7 @@ I have a small HTML snippet (a container and its children) and a set of visual c
 Your goal is to refactor this specific HTML snippet to apply these changes while maintaining clean, semantic code and using Tailwind CSS utility classes.
 
 ### Rules:
-1. Prioritize Tailwind CSS utility classes over inline styles.
+1. Prioritize Tailwind CSS utility classes for the target visual changes.
 2. Infer layout intent: if items are moved together, consider using flex or grid.
 3. geometry.position changes (dx, dy) represent RELATIVE pixel movement by the user. Choose the CORRECT CSS approach based on the element's current layout context:
    - If the element is position:absolute or position:relative with top/left — adjust those offset values by dx/dy.
@@ -188,6 +188,7 @@ Your goal is to refactor this specific HTML snippet to apply these changes while
 7. RETURN ONLY THE FULL REFACTORED HTML CODE FOR THIS SNIPPET. NO EXPLANATIONS.
 8. CRITICAL: Make sure to KEEP the 'data-ai-id="${tmpId}"' attribute on the root container element.
 9. CRITICAL: Your target elements are marked with 'data-ai-target'. Use this to locate them, and cleanly REMOVE these 'data-ai-target' attributes from your final output.
+10. CRITICAL: DO NOT REMOVE ANY existing IDs or classes from the root container or its children unless they are inline styles directly conflicting with the change. Simply APPEND new tailwind classes.
 
 ### Container HTML:
 \`\`\`html
@@ -213,10 +214,9 @@ Refactor the container HTML applying these deltas and return the final HTML snip
       }
 
       if (rawOutput) {
-        let refactoredHtml = rawOutput
-          .replace(/^```html\n/, '').replace(/\n```$/, '')
-          .replace(/^```\n/, '').replace(/\n```$/, '')
-          .trim();
+        // Robust extraction of HTML content, even if the model included filler text.
+        const match = rawOutput.match(/```(?:html)?\n([\s\S]*?)```/);
+        let refactoredHtml = match ? match[1].trim() : rawOutput.trim();
           
         // Restore base64 strings
         for (const [maskId, b64] of imgDictionary.entries()) {

@@ -42,8 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 # Slide.html specific
-/storage/
-/debug/
+/storage
+/debug
 *.jsonkey
 *aif-liveai*.json
 *-gserviceaccount*.json

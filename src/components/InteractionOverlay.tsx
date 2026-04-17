@@ -190,6 +190,12 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
           animation: none !important;
           user-select: none !important;
         }
+        .slide, .reveal, .slide.active, .slide.visible .reveal {
+          opacity: 1 !important;
+          visibility: visible !important;
+          transform: translateY(0) !important;
+          pointer-events: auto !important;
+        }
       `;
       doc.head.appendChild(styleEl);
     }
@@ -684,7 +690,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         stylePortalRoot
       )}
 
-      {isEditMode && !editingElement && iframeWindow && createPortal(
+      {isEditMode && !editingElement && iframeWindow && iframeWindow.document && iframeWindow.document.body && createPortal(
         <Moveable
           ref={moveableRef}
           target={targets.length === 1 ? targets[0] : targets}
