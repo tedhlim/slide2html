@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -127,6 +128,7 @@ export default function Home() {
 
       const navKeys = ['ArrowRight', 'ArrowLeft', ' ', 'PageDown', 'PageUp', 'g', 'G'];
       if (navKeys.includes(e.key)) {
+        setTargets([]);
         const iframe = iframeRef.current;
         if (iframe && iframe.contentWindow && iframe.contentWindow.document) {
           iframe.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', {
@@ -201,12 +203,19 @@ export default function Home() {
   const navigateSlide = (direction: 'next' | 'prev') => {
     const iframe = iframeRef.current;
     if (iframe && iframe.contentWindow && iframe.contentWindow.document) {
+      setTargets([]);
       const key = direction === 'next' ? 'ArrowRight' : 'ArrowLeft';
-      iframe.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', { 
-        key, 
+      iframe.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', {
+        key,
         bubbles: true,
-        cancelable: true 
+        cancelable: true
       }));
+      // Also scroll .slide-container directly for CSS scroll-snap decks
+      const container = iframe.contentWindow.document.querySelector('.slide-container');
+      if (container) {
+        const scrollAmount = direction === 'next' ? container.clientWidth : -container.clientWidth;
+        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      }
     }
   };
 

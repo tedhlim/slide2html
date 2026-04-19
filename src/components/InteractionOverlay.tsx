@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Moveable, { OnDragStart, OnDrag, OnDragEnd, OnResizeStart, OnResize, OnResizeEnd } from 'react-moveable';
 import { VisualDelta, DebugInfo } from '@/lib/types';
@@ -88,7 +88,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
   const generateSelector = useCallback((el: HTMLElement | SVGElement): string => {
     if (el.id) return `#${el.id}`;
     
-    let path: string[] = [];
+    const path: string[] = [];
     let current: Element | null = el;
     
     while (current && current.tagName !== 'HTML' && current.tagName !== 'BODY') {
@@ -114,6 +114,27 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
 
     return path.join(' > ');
   }, []);
+
+  // Clear selection when the iframe scrolls (slide navigation)
+  useEffect(() => {
+    if (!iframeWindow) return;
+    const doc = iframeWindow.document;
+
+    const clearOnScroll = () => {
+      if (targets.length > 0) onTargetsChange([]);
+    };
+
+    const slideContainer = doc.querySelector('.slide-container');
+    const scrollEl = doc.scrollingElement || doc.documentElement;
+
+    slideContainer?.addEventListener('scroll', clearOnScroll);
+    scrollEl.addEventListener('scroll', clearOnScroll);
+
+    return () => {
+      slideContainer?.removeEventListener('scroll', clearOnScroll);
+      scrollEl.removeEventListener('scroll', clearOnScroll);
+    };
+  }, [iframeWindow, targets, onTargetsChange]);
 
   // Emit debug info whenever targets or zoom changes
   useEffect(() => {
@@ -193,7 +214,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         .slide, .reveal, .slide.active, .slide.visible .reveal {
           opacity: 1 !important;
           visibility: visible !important;
-          transform: translateY(0) !important;
+          transform: none !important;
           pointer-events: auto !important;
         }
       `;
@@ -474,6 +495,12 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     setStylePortalRoot(document.getElementById('style-panel-portal'));
   }, []);
 
+  // Resolve the Moveable container — prefer .slide-container (scroll context) over body
+  const moveablePortal = useMemo(() => {
+    if (!iframeWindow) return null;
+    return (iframeWindow.document.querySelector('.slide-container') as HTMLElement) || iframeWindow.document.body;
+  }, [iframeWindow]);
+
   if (!iframeWindow) return null;
 
   const FONT_WEIGHTS = ['300', '400', '500', '600', '700', '800', '900'];
@@ -690,11 +717,11 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         stylePortalRoot
       )}
 
-      {isEditMode && !editingElement && iframeWindow && iframeWindow.document && iframeWindow.document.body && createPortal(
+      {isEditMode && !editingElement && moveablePortal && createPortal(
         <Moveable
           ref={moveableRef}
           target={targets.length === 1 ? targets[0] : targets}
-          container={iframeWindow.document.body}
+          container={moveablePortal}
           draggable={true}
           resizable={true}
           zoom={1 / zoom}
@@ -706,7 +733,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
           onResizeEnd={onResizeEnd}
           className="pointer-events-auto"
         />,
-        iframeWindow.document.body
+        moveablePortal
       )}
     </div>
   );
