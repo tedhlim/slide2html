@@ -210,6 +210,11 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
           transition: none !important;
           animation: none !important;
           user-select: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+        }
+        .slide-container {
+          position: relative !important;
         }
         .slide, .reveal, .slide.active, .slide.visible .reveal {
           opacity: 1 !important;

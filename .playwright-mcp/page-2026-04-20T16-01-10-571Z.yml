@@ -1,0 +1,298 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e20]:
+            - heading "SLIDE.HTML" [level=1] [ref=e21]
+            - generic [ref=e22]: AI Round-Trip v1.0
+        - generic [ref=e24]:
+          - button [ref=e25]:
+            - img [ref=e26]
+          - generic [ref=e28]: Navigate
+          - button [ref=e29]:
+            - img [ref=e30]
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e36]: Keyboard Active
+          - generic [ref=e37]: NO CHANGES
+        - generic [ref=e38]:
+          - button "EDIT" [ref=e39]
+          - button "PLAY" [ref=e40]
+        - button "UPLOAD" [ref=e41]
+        - button "EXPORT" [ref=e42]
+        - button "UNDO" [disabled]:
+          - img
+          - text: UNDO
+        - button "SAVE" [ref=e43]
+        - button "SYNC WITH AI" [disabled] [ref=e44]
+        - button "DEBUG" [ref=e45]
+    - main [ref=e46]:
+      - generic [ref=e48]:
+        - iframe [ref=e49]:
+          - generic [ref=f1e2]:
+            - generic [ref=f1e3]:
+              - heading "Slide.html" [level=1] [ref=f1e4]
+              - paragraph [ref=f1e5]: Interactive AI-Generated Docs Editor
+              - img [ref=f1e7]
+              - paragraph [ref=f1e9]: 스크롤하여 이동
+            - generic [ref=f1e11]:
+              - heading "1. 무엇을 하는 앱인가요?" [level=2] [ref=f1e12]
+              - generic [ref=f1e13]:
+                - generic [ref=f1e15]:
+                  - heading "하이브리드 문서 편집 도구" [level=3] [ref=f1e17]
+                  - paragraph [ref=f1e18]:
+                    - text: AI가 80%의 초안(Structure & Design)을 생성하고, 사용자가 20%의 디테일(Layout & Text)을
+                    - strong [ref=f1e19]: Figma
+                    - text: 처럼 시각적으로 직접 튜닝합니다.
+                - generic [ref=f1e20]:
+                  - heading "격리된 렌더링 환경" [level=3] [ref=f1e22]
+                  - paragraph [ref=f1e23]: Iframe과 Shadow DOM을 통해 전역(Global CSS) 스타일의 충돌을 방지하며 독립적인 문서를 렌더링합니다.
+                - generic [ref=f1e24]:
+                  - heading "\"Clean Code\" Loop" [level=3] [ref=f1e26]
+                  - paragraph [ref=f1e27]:
+                    - text: 사용자가 드래그 앤 드롭으로 만든 시각적 디자인 변화를 다시 AI 엔진으로 보내, 난잡한 Inline-style 대신
+                    - strong [ref=f1e28]: Tailwind CSS
+                    - text: 기반의 시맨틱하고 깔끔한 코드로 변환(Refactoring)합니다.
+            - generic [ref=f1e30]:
+              - heading "2. E2E 입출력 흐름 (Input/Output Flow)" [level=2] [ref=f1e31]
+              - generic [ref=f1e32]:
+                - generic [ref=f1e33]:
+                  - generic [ref=f1e34]: "1"
+                  - heading "Render" [level=3] [ref=f1e35]
+                  - paragraph [ref=f1e36]:
+                    - text: 생성한 HTML/CSS 코드를
+                    - strong [ref=f1e37]: Iframe
+                    - text: 에 렌더링
+                  - img [ref=f1e39]
+                - generic [ref=f1e41]:
+                  - generic [ref=f1e42]: "2"
+                  - heading "Visual Edit" [level=3] [ref=f1e43]
+                  - paragraph [ref=f1e44]:
+                    - strong [ref=f1e45]: Moveable.js
+                    - text: +
+                    - code [ref=f1e46]: contentEditable
+                    - text: 을 이용한 시각적 Interaction Overlay
+                  - img [ref=f1e48]
+                - generic [ref=f1e50]:
+                  - generic [ref=f1e51]: "3"
+                  - heading "Data Extrac." [level=3] [ref=f1e52]
+                  - paragraph [ref=f1e53]:
+                    - text: 변경 사항을
+                    - strong [ref=f1e54]: Visual Delta JSON
+                    - text: (dx/dy, 스타일 변경) 포맷으로 추출
+                  - img [ref=f1e56]
+                - generic [ref=f1e58]:
+                  - generic [ref=f1e59]: "4"
+                  - heading "AI Refactor" [level=3] [ref=f1e60]
+                  - paragraph [ref=f1e61]:
+                    - text: Original + Delta ➔
+                    - strong [ref=f1e62]: Tailwind AI Sync
+                  - img [ref=f1e64]
+                - generic [ref=f1e66]:
+                  - generic [ref=f1e67]: "5"
+                  - heading "Save" [level=3] [ref=f1e68]
+                  - paragraph [ref=f1e69]:
+                    - text: Clean
+                    - strong [ref=f1e70]: file System
+                    - text: overwrite
+            - generic [ref=f1e72]:
+              - generic [ref=f1e73]:
+                - generic [ref=f1e74]: ⚠️
+                - heading "3. 현재의 기술적 난관" [level=2] [ref=f1e75]
+              - paragraph [ref=f1e76]: 적용 및 렌더링 과정에서 직면한 주요 이슈 (Technical Challenges)
+              - generic [ref=f1e77]:
+                - generic [ref=f1e79]:
+                  - img [ref=f1e81]
+                  - generic [ref=f1e83]:
+                    - heading "Overlay와 Iframe DOM 간의 실시간 동기화 (Sync)" [level=3] [ref=f1e84]
+                    - paragraph [ref=f1e85]:
+                      - text: Interaction Overlay는 투명한 상위 레이어이고, 실제 콘텐츠는 내부 Iframe에 종속되어 있습니다. 수정 이벤트를
+                      - code [ref=f1e86]: BoundingClientRect
+                      - text: 기준으로 잡아 맵핑할 때, 스크롤링 위치나 내부 DOM element로 변화 이벤트(geometry, text content)를 정확하고 지연 없이 밀어넣는 것이 어렵습니다.
+                - generic [ref=f1e88]:
+                  - img [ref=f1e90]
+                  - generic [ref=f1e92]:
+                    - heading "상대 좌표(Relative dx/dy) 변환과 AI의 Layout 추론" [level=3] [ref=f1e93]
+                    - paragraph [ref=f1e94]:
+                      - text: 마우스 드래그로 발생하는 건 절대 좌표(Absolute px)이지만, 우리가 원하는 결과물은 Semantic Tailwind (
+                      - code [ref=f1e95]: justify-end
+                      - text: ","
+                      - code [ref=f1e96]: mt-10
+                      - text: 등)입니다. 따라서 절대 좌표를 분석하여 상대적 이동치(dx/dy)로 변환하고, 이를 AI가 "의도대로 Layout을 재구성"하도록 확실히 제어/프롬프팅 하기가 까다롭습니다.
+                - generic [ref=f1e98]:
+                  - img [ref=f1e100]
+                  - generic [ref=f1e102]:
+                    - heading "Native CSS Interaction 저해 및 상태(State) 초기화 관리" [level=3] [ref=f1e103]
+                    - paragraph [ref=f1e104]: Iframe 내의 Native CSS Animation이나 Transition이 Edit Mode 중에 발동되면 BoundingBox 계산이 어긋나 Lag가 발생합니다. 또한 DOM 변경 시 Next.js나 애플리케이션 상태(State)가 다시 렌더링되면서 에디팅 컨텍스트가 날아가지 않도록, State 초기화(State Reset) 방어 로직을 엮어야 합니다.
+        - generic: MANIPULATION MODE ACTIVE
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e53]: Design
+          - generic [ref=e181]:
+            - generic [ref=e182]:
+              - generic [ref=e183]:
+                - generic [ref=e184]:
+                  - img [ref=e185]
+                  - text: Fill
+                - generic [ref=e187] [cursor=pointer]:
+                  - 'textbox "Fill #f1f5f9" [ref=e188]': "#f1f5f9"
+                  - generic [ref=e189]: "#f1f5f9"
+              - generic [ref=e190]:
+                - generic [ref=e191]:
+                  - img [ref=e192]
+                  - text: Background
+                - generic [ref=e194] [cursor=pointer]:
+                  - 'textbox "Background #ffffff" [ref=e195]': "#ffffff"
+                  - generic [ref=e196]: "#ffffff"
+            - generic [ref=e198]:
+              - generic [ref=e199]: Typography
+              - generic [ref=e200]:
+                - img [ref=e202]
+                - combobox [ref=e204] [cursor=pointer]:
+                  - option "Inter" [selected]
+                  - option "Arial"
+                  - option "Georgia"
+                  - option "Times New Roman"
+                  - option "Courier New"
+                  - option "Verdana"
+                  - option "Trebuchet MS"
+                - img
+              - generic [ref=e205]:
+                - button [ref=e206]:
+                  - img [ref=e207]
+                - button [ref=e209]:
+                  - img [ref=e210]
+                - button [ref=e212]:
+                  - img [ref=e213]
+                - button [ref=e215]:
+                  - img [ref=e216]
+              - generic [ref=e218]:
+                - generic [ref=e220]: Size
+                - spinbutton "Size" [ref=e221]: "16"
+            - generic [ref=e223]:
+              - generic [ref=e224]: Details
+              - generic [ref=e225]:
+                - img [ref=e227]
+                - spinbutton [ref=e229]: "0"
+              - generic [ref=e230]:
+                - img [ref=e232]
+                - spinbutton [ref=e234]: "0"
+              - generic [ref=e236]:
+                - generic [ref=e237]:
+                  - generic [ref=e238]:
+                    - img [ref=e239]
+                    - text: Opacity
+                  - generic [ref=e241]: 100%
+                - slider "Opacity 100%" [ref=e242]: "1"
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]: Layers
+            - button "↺" [ref=e61]
+          - generic [ref=e243]:
+            - generic [ref=e244]: 1 selected
+            - button "Clear" [ref=e245]
+          - generic [ref=e63]:
+            - generic [ref=e64] [cursor=pointer]:
+              - button "▾" [ref=e65]
+              - generic [ref=e66]: div
+              - generic [ref=e67]: .slide-container
+            - generic [ref=e68]:
+              - generic [ref=e69]:
+                - generic [ref=e70] [cursor=pointer]:
+                  - button "▾" [ref=e71]
+                  - generic [ref=e72]: section
+                  - generic [ref=e73]: .slide
+                - generic [ref=e74]:
+                  - generic [ref=e76] [cursor=pointer]:
+                    - button "·" [ref=e77]
+                    - generic [ref=e78]: h1
+                    - generic [ref=e79]: .text-6xl
+                    - generic [ref=e80]: Slide.html
+                  - generic [ref=e82] [cursor=pointer]:
+                    - button "·" [ref=e83]
+                    - generic [ref=e84]: p
+                    - generic [ref=e85]: .text-xl
+                    - generic [ref=e86]: Interactive AI-Generated Doc
+                  - generic [ref=e87]:
+                    - generic [ref=e88] [cursor=pointer]:
+                      - button "▾" [ref=e89]
+                      - generic [ref=e90]: div
+                      - generic [ref=e91]: .animate-bounce
+                    - generic [ref=e94] [cursor=pointer]:
+                      - button "·" [ref=e95]
+                      - generic [ref=e96]: svg
+                      - generic [ref=e97]: .w-8
+                  - generic [ref=e99] [cursor=pointer]:
+                    - button "·" [ref=e100]
+                    - generic [ref=e101]: p
+                    - generic [ref=e102]: .mt-4
+                    - generic [ref=e103]: 스크롤하여 이동
+              - generic [ref=e104]:
+                - generic [ref=e105] [cursor=pointer]:
+                  - button "▾" [ref=e106]
+                  - generic [ref=e107]: section
+                  - generic [ref=e108]: .slide
+                - generic [ref=e110]:
+                  - generic [ref=e111] [cursor=pointer]:
+                    - button "▾" [ref=e112]
+                    - generic [ref=e113]: div
+                    - generic [ref=e114]: .glass-panel
+                  - generic [ref=e115]:
+                    - generic [ref=e117] [cursor=pointer]:
+                      - button "·" [ref=e118]
+                      - generic [ref=e119]: h2
+                      - generic [ref=e120]: .text-3xl
+                      - generic [ref=e121]: 1. 무엇을 하는 앱인가요?
+                    - generic [ref=e123] [cursor=pointer]:
+                      - button "▸" [ref=e124]
+                      - generic [ref=e125]: div
+                      - generic [ref=e126]: .grid
+              - generic [ref=e127]:
+                - generic [ref=e128] [cursor=pointer]:
+                  - button "▾" [ref=e129]
+                  - generic [ref=e130]: section
+                  - generic [ref=e131]: .slide
+                - generic [ref=e133]:
+                  - generic [ref=e134] [cursor=pointer]:
+                    - button "▾" [ref=e135]
+                    - generic [ref=e136]: div
+                    - generic [ref=e137]: .glass-panel
+                  - generic [ref=e138]:
+                    - generic [ref=e140] [cursor=pointer]:
+                      - button "·" [ref=e141]
+                      - generic [ref=e142]: h2
+                      - generic [ref=e143]: .text-3xl
+                      - generic [ref=e144]: 2. E2E 입출력 흐름 (Input/Output
+                    - generic [ref=e146] [cursor=pointer]:
+                      - button "▸" [ref=e147]
+                      - generic [ref=e148]: div
+                      - generic [ref=e149]: .grid
+              - generic [ref=e150]:
+                - generic [ref=e151] [cursor=pointer]:
+                  - button "▾" [ref=e152]
+                  - generic [ref=e153]: section
+                  - generic [ref=e154]: .slide
+                - generic [ref=e156]:
+                  - generic [ref=e157] [cursor=pointer]:
+                    - button "▾" [ref=e158]
+                    - generic [ref=e159]: div
+                    - generic [ref=e160]: .glass-panel
+                  - generic [ref=e161]:
+                    - generic [ref=e163] [cursor=pointer]:
+                      - button "▸" [ref=e164]
+                      - generic [ref=e165]: div
+                      - generic [ref=e166]: .flex
+                    - generic [ref=e168] [cursor=pointer]:
+                      - button "·" [ref=e169]
+                      - generic [ref=e170]: p
+                      - generic [ref=e171]: .mb-10
+                      - generic [ref=e172]: 적용 및 렌더링 과정에서 직면한 주요 이슈 (Tec
+                    - generic [ref=e174] [cursor=pointer]:
+                      - button "▸" [ref=e175]
+                      - generic [ref=e176]: div
+                      - generic [ref=e177]: .grid
+  - button "Open Next.js Dev Tools" [ref=e10] [cursor=pointer]:
+    - img [ref=e11]
+  - alert [ref=e178]
