@@ -47,3 +47,5 @@ next-env.d.ts
 *.jsonkey
 *aif-liveai*.json
 *-gserviceaccount*.json
+
+.playwright-mcp
