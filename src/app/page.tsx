@@ -24,6 +24,7 @@ export default function Home() {
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollClearDisabledRef = useRef<boolean>(false);
 
   const handleExport = () => {
     const iframe = iframeRef.current;
@@ -106,13 +107,48 @@ export default function Home() {
     const last = history[history.length - 1];
     setHistory(prev => prev.slice(0, -1));
     setDeltas(last.deltas);
-    setTargets([]);
-    
+
+    // Remember selectors of currently selected targets before DOM replacement
+    const selectors = targets.map(el => {
+      if (el.id) return `#${el.id}`;
+      const path: string[] = [];
+      let current: Element | null = el;
+      while (current && current.tagName !== 'HTML' && current.tagName !== 'BODY') {
+        if (current.id) { path.unshift(`#${current.id}`); break; }
+        let selector = current.tagName.toLowerCase();
+        let nth = 1;
+        let sibling = current.previousElementSibling;
+        while (sibling) { if (sibling.tagName === current.tagName) nth++; sibling = sibling.previousElementSibling; }
+        selector += `:nth-of-type(${nth})`;
+        path.unshift(selector);
+        current = current.parentElement;
+      }
+      return path.join(' > ');
+    });
+
     const iframe = iframeRef.current;
     if (iframe?.contentWindow?.document) {
+      // Suppress scroll-clear during innerHTML replacement (it triggers scroll events)
+      scrollClearDisabledRef.current = true;
       iframe.contentWindow.document.body.innerHTML = last.bodyHtml;
+
+      // Re-select elements by their selectors in the new DOM after all
+      // synchronous side-effects (scroll events, layout reflow) have settled
+      const iDoc = iframe.contentWindow.document;
+      const iframeWin = iframe.contentWindow as any;
+      const iframeHTMLElement = iframeWin.HTMLElement;
+      const iframeSVGElement = iframeWin.SVGElement;
+      const restored = selectors
+        .map(sel => { try { return iDoc.querySelector(sel); } catch { return null; } })
+        .filter((el): el is HTMLElement | SVGElement => el instanceof iframeHTMLElement || el instanceof iframeSVGElement);
+      requestAnimationFrame(() => {
+        setTargets(restored.length > 0 ? restored : []);
+        setTimeout(() => { scrollClearDisabledRef.current = false; }, 200);
+      });
+    } else {
+      setTargets([]);
     }
-  }, [history]);
+  }, [history, targets]);
 
   // Keyboard Passthrough & Undo
   useEffect(() => {
@@ -415,6 +451,7 @@ export default function Home() {
               onTargetsChange={setTargets}
               onDebugInfo={setDebugInfo}
               onActionStart={pushHistoryState}
+              scrollClearDisabledRef={scrollClearDisabledRef}
             />
 
             {isEditMode && (

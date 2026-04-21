@@ -13,6 +13,7 @@ interface InteractionOverlayProps {
   onTargetsChange: (targets: Array<HTMLElement | SVGElement>) => void;
   onDebugInfo?: (info: DebugInfo) => void;
   onActionStart?: () => void;
+  scrollClearDisabledRef?: React.RefObject<boolean>;
 }
 
 interface StyleValues {
@@ -36,7 +37,7 @@ function rgbToHex(rgb: string): string {
   return '#' + result.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
 }
 
-export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode, targets, onTargetsChange, onDebugInfo, onActionStart }) => {
+export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRef, onChange, isEditMode, targets, onTargetsChange, onDebugInfo, onActionStart, scrollClearDisabledRef }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const moveableRef = useRef<Moveable>(null);
   const [iframeWindow, setIframeWindow] = useState<Window | null>(null);
@@ -121,6 +122,7 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     const doc = iframeWindow.document;
 
     const clearOnScroll = () => {
+      if (scrollClearDisabledRef?.current) return;
       if (targets.length > 0) onTargetsChange([]);
     };
 
