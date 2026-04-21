@@ -115,3 +115,65 @@ Click **DEBUG** in the header to open the debug overlay. It shows:
 - Last generated CSS selector
 - Last delta type (drag/resize/style/deleted)
 - Full pending delta JSON queued for the next SYNC
+
+## Playwright MCP setup (for `/debug` skill)
+
+The `/debug` Claude Code skill uses [Playwright MCP](https://github.com/anthropics/claude-code/blob/main/docs/mcp.md) to interact with the running app in a real browser — clicking elements, taking screenshots, and inspecting DOM state.
+
+### 1. Install the Playwright MCP plugin
+
+Inside Claude Code, run:
+
+```
+/install-plugin https://github.com/anthropics/claude-code-plugins/tree/main/external_plugins/playwright
+```
+
+Or manually add to `~/.claude/settings.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+### 2. Grant permissions (optional)
+
+To avoid repeated approval prompts, add these to `.claude/settings.local.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages"
+    ]
+  }
+}
+```
+
+### 3. Usage
+
+With the dev server running (`npm run dev`), invoke the debug skill in Claude Code:
+
+```
+/debug 선택 박스가 요소 아래로 밀려나요
+```
+
+The skill will automatically:
+1. Classify the bug (UI vs code logic)
+2. Launch a Playwright browser and navigate to `localhost:3000`
+3. Take screenshots and snapshots to understand current state
+4. Reproduce the bug using browser interactions
+5. Trace the root cause in source code and apply a fix
+6. Verify the fix in the browser
+
+If the Playwright MCP connection drops, run `/mcp` in Claude Code to reconnect.
