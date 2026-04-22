@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { IframeRenderer } from '@/components/IframeRenderer';
 import { InteractionOverlay } from '@/components/InteractionOverlay';
 import { LayerPanel } from '@/components/LayerPanel';
@@ -128,6 +129,9 @@ export default function Home() {
 
     const iframe = iframeRef.current;
     if (iframe?.contentWindow?.document) {
+      // Unmount Moveable portal before replacing body innerHTML to prevent
+      // React's removeChild from failing on already-destroyed portal nodes.
+      flushSync(() => setTargets([]));
       // Suppress scroll-clear during innerHTML replacement (it triggers scroll events)
       scrollClearDisabledRef.current = true;
       iframe.contentWindow.document.body.innerHTML = last.bodyHtml;
@@ -240,17 +244,32 @@ export default function Home() {
     const iframe = iframeRef.current;
     if (iframe && iframe.contentWindow && iframe.contentWindow.document) {
       setTargets([]);
+      const iDoc = iframe.contentWindow.document;
+      const iWin = iframe.contentWindow;
+
       const key = direction === 'next' ? 'ArrowRight' : 'ArrowLeft';
-      iframe.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', {
-        key,
-        bubbles: true,
-        cancelable: true
-      }));
-      // Also scroll .slide-container directly for CSS scroll-snap decks
-      const container = iframe.contentWindow.document.querySelector('.slide-container');
+      iDoc.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+      // Find the scroll-snap container: try known class first, then scan for
+      // any element that has scroll-snap-type set, then fall back to scrollingElement.
+      const findSnapContainer = (): Element | null => {
+        const known = iDoc.querySelector('.slide-container');
+        if (known) return known;
+        for (const el of Array.from(iDoc.querySelectorAll('body *'))) {
+          const snapType = iWin.getComputedStyle(el).scrollSnapType;
+          if (snapType && snapType !== 'none') return el;
+        }
+        return iDoc.scrollingElement ?? iDoc.documentElement;
+      };
+
+      const container = findSnapContainer();
       if (container) {
-        const scrollAmount = direction === 'next' ? container.clientWidth : -container.clientWidth;
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        const snapType = iWin.getComputedStyle(container).scrollSnapType ?? '';
+        const isVertical = snapType.startsWith('y') || (!snapType.startsWith('x') && container.scrollHeight > container.scrollWidth);
+        const scrollAmount = direction === 'next'
+          ? (isVertical ? container.clientHeight : container.clientWidth)
+          : (isVertical ? -container.clientHeight : -container.clientWidth);
+        container.scrollBy(isVertical ? { top: scrollAmount, behavior: 'smooth' } : { left: scrollAmount, behavior: 'smooth' });
       }
     }
   };
@@ -436,11 +455,14 @@ export default function Home() {
 
       <main className="flex-grow flex overflow-hidden">
         {/* Canvas area */}
-        <div className="flex-grow flex justify-center p-12 overflow-hidden min-w-0">
+        <div
+          className="flex-grow flex justify-center p-12 overflow-hidden min-w-0"
+          onClick={() => { if (isEditMode && targets.length > 0) setTargets([]); }}
+        >
           <div
             className={`relative w-full max-w-[1400px] bg-white shadow-[0_40px_100px_rgba(0,0,0,0.12)] rounded-2xl border border-gray-100 overflow-hidden transition-all duration-500 ${isEditMode ? 'ring-4 ring-blue-500/10' : ''}`}
             style={{ aspectRatio: '16/9', alignSelf: 'center' }}
-            onClick={() => setIsKeyboardActive(true)}
+            onClick={(e) => { e.stopPropagation(); setIsKeyboardActive(true); }}
           >
             <IframeRenderer ref={iframeRef} htmlContent={html} />
             <InteractionOverlay

@@ -251,6 +251,17 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
       // intercept it and advance the slide. We handle selection ourselves.
       e.stopPropagation();
 
+      // section.slide elements (direct children of .slide-container) are layout roots
+      // and must not be selectable — selecting them causes Moveable to inject
+      // overflow styles that produce unwanted scrollbars inside the slide.
+      const isSlideRoot = (el.tagName === 'SECTION' && el.parentElement?.classList?.contains('slide-container'))
+        || el.classList?.contains('slide-container');
+
+      if (isSlideRoot) {
+        if (!e.shiftKey) onTargetsChange([]);
+        return;
+      }
+
       if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
         if (e.shiftKey) {
           onTargetsChange(targets.includes(el) ? targets.filter(t => t !== el) : [...targets, el]);
@@ -277,8 +288,12 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     const onDoubleClick = (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      
+
       const el = e.target as HTMLElement;
+      const isSlideRoot = (el.tagName === 'SECTION' && el.parentElement?.classList?.contains('slide-container'))
+        || el.classList?.contains('slide-container');
+      if (isSlideRoot) return;
+
       if (el && !['HTML', 'BODY', 'SCRIPT', 'STYLE', 'HEAD'].includes(el.tagName)) {
         onActionStart?.();
         const selection = iframeWindow?.getSelection();
@@ -502,10 +517,9 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
     setStylePortalRoot(document.getElementById('style-panel-portal'));
   }, []);
 
-  // Resolve the Moveable container — prefer .slide-container (scroll context) over body
   const moveablePortal = useMemo(() => {
     if (!iframeWindow) return null;
-    return (iframeWindow.document.querySelector('.slide-container') as HTMLElement) || iframeWindow.document.body;
+    return iframeWindow.document.body;
   }, [iframeWindow]);
 
   if (!iframeWindow) return null;
@@ -724,11 +738,10 @@ export const InteractionOverlay: React.FC<InteractionOverlayProps> = ({ iframeRe
         stylePortalRoot
       )}
 
-      {isEditMode && !editingElement && moveablePortal && createPortal(
+      {isEditMode && targets.length > 0 && !editingElement && moveablePortal && createPortal(
         <Moveable
           ref={moveableRef}
           target={targets.length === 1 ? targets[0] : targets}
-          container={moveablePortal}
           draggable={true}
           resizable={true}
           zoom={1 / zoom}
