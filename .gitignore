@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Slide.html specific
 /storage
+AGENTS.md
 /debug
 *.jsonkey
 *aif-liveai*.json
