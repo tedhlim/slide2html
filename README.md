@@ -116,6 +116,63 @@ Click **DEBUG** in the header to open the debug overlay. It shows:
 - Last delta type (drag/resize/style/deleted)
 - Full pending delta JSON queued for the next SYNC
 
+## Claude Code skills
+
+This project includes custom [Claude Code](https://claude.com/claude-code) skills that automate common development workflows. Run them inside a Claude Code session.
+
+### `/feature` — Full feature pipeline (recommended)
+
+The all-in-one command. Describe a feature in plain language and it runs the entire planning pipeline before writing any code.
+
+```
+/feature 요소를 드래그해서 그룹으로 묶는 기능
+/feature Add an eyedropper color picker to the style panel
+```
+
+**What it does:**
+1. Analyzes the codebase and writes a structured PRD to `.claude/prds/<feature>.md`
+2. Reviews the PRD against architecture rules and known gotchas
+3. If blockers are found, fixes the PRD and re-reviews (once)
+4. Generates a concrete implementation plan with file-by-file changes
+5. Presents everything and waits for your approval before writing code
+
+### `/prd` — Write a PRD only
+
+Generates a PRD without reviewing or planning implementation. Useful when you want to draft first, then review separately.
+
+```
+/prd 색상 팔레트 히스토리 기능
+```
+
+Output: `.claude/prds/<feature-slug>.md` containing summary, affected components, proposed changes, edge cases, testing plan, and open questions — all referencing actual source files and architecture rules from `DEVELOPMENT.md`.
+
+### `/review-prd` — Review an existing PRD
+
+Reviews a PRD for architectural consistency, known iframe/Moveable gotchas, missing edge cases, and state management concerns. Appends a review section with categorized issues.
+
+```
+/review-prd color-palette-history
+/review-prd .claude/prds/element-grouping.md
+```
+
+Issues are categorized as:
+- `[BLOCKER]` — Must fix before implementation (architecture violations, guaranteed bugs)
+- `[WARNING]` — Should fix (risk of bugs in specific scenarios)
+- `[SUGGESTION]` — Nice to have (code quality, UX improvements)
+
+### `/debug` — Diagnose and fix bugs
+
+Describe a bug in natural language. The skill classifies it (UI vs code logic), launches a Playwright browser for UI bugs, reproduces the issue, traces the root cause, and applies a fix.
+
+```
+/debug 선택 박스가 요소 아래로 밀려나요
+/debug UNDO after font size change clears selection
+```
+
+Requires the Playwright MCP plugin (see setup below).
+
+---
+
 ## Playwright MCP setup (for `/debug` skill)
 
 The `/debug` Claude Code skill uses [Playwright MCP](https://github.com/anthropics/claude-code/blob/main/docs/mcp.md) to interact with the running app in a real browser — clicking elements, taking screenshots, and inspecting DOM state.

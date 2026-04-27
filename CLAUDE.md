@@ -58,6 +58,18 @@ CLAUDE_MODEL=claude-sonnet-4-6    # default model
 STORAGE_MODE=local                # "local" or "cloud" (GCS)
 ```
 
+## Development Rules
+
+**Read `DEVELOPMENT.md` for full details.** Key rules summarized here:
+
+1. **Cross-iframe `instanceof`** — Never use `el instanceof HTMLElement` for iframe elements. Use `iframe.contentWindow.HTMLElement` instead.
+2. **DOM references die on innerHTML** — After replacing `body.innerHTML`, re-query elements by CSS selector. Wrap `setTargets` in `requestAnimationFrame`.
+3. **CSS containing blocks** — `backdrop-filter`, `transform`, `filter`, `will-change` create containing blocks that break Moveable positioning. Neutralize them in `slide2html-edit-override`.
+4. **Call `onActionStart()` before mutations** — Every DOM change (drag, resize, style, text edit, delete) must push history first for UNDO support.
+5. **Don't select `section.slide`** — Selecting slide root elements causes Moveable to inject overflow styles that produce scrollbars.
+6. **Use capture phase for iframe events** — All mousedown/pointerdown handlers must be registered with `addEventListener(..., true)` to intercept before the slide deck's own handlers.
+7. **Verify after changes** — Run `npx tsc --noEmit`. Test selection, UNDO, and Moveable positioning.
+
 ## Next.js Version Warning
 
 This project uses **Next.js 16** which has breaking changes from earlier versions. Check `node_modules/next/dist/docs/` before writing any Next.js-specific code. Heed deprecation notices.
